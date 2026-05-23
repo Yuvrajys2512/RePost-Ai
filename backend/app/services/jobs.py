@@ -7,6 +7,8 @@ from pathlib import Path
 from threading import Lock
 from uuid import UUID, uuid4
 
+from pydantic import ValidationError
+
 from app.agents.graph import run_pipeline_for_transcript
 from app.schemas.generation import GeneratedContentKit
 from app.schemas.video import VideoJobResponse, VideoJobStatus
@@ -55,6 +57,13 @@ class VideoJob:
 
     @classmethod
     def from_record(cls, record: dict) -> "VideoJob":
+        content = None
+        if record.get("content"):
+            try:
+                content = GeneratedContentKit.model_validate(record["content"])
+            except ValidationError:
+                content = None
+
         return cls(
             job_id=UUID(record["job_id"]),
             youtube_url=record["youtube_url"],
@@ -64,9 +73,7 @@ class VideoJob:
             created_at=datetime.fromisoformat(record["created_at"]),
             updated_at=datetime.fromisoformat(record["updated_at"]),
             transcript_text=record.get("transcript_text"),
-            content=GeneratedContentKit.model_validate(record["content"])
-            if record.get("content")
-            else None,
+            content=content,
             error=record.get("error"),
         )
 

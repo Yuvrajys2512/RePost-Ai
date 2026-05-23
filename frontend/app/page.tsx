@@ -14,6 +14,44 @@ type LinkedInPost = {
   cta: string;
 };
 
+type NewsletterContent = {
+  subject_lines: string[];
+  preview_text: string;
+  body: string;
+  cta: string;
+};
+
+type BlogContent = {
+  title: string;
+  meta_description: string;
+  introduction: string;
+  sections: {
+    heading: string;
+    body: string;
+  }[];
+  conclusion: string;
+};
+
+type ShortsContent = {
+  clips: {
+    title: string;
+    start_seconds: number;
+    end_seconds: number;
+    hook: string;
+    script: string;
+  }[];
+};
+
+type CarouselContent = {
+  title: string;
+  slides: {
+    slide_number: number;
+    headline: string;
+    body: string;
+  }[];
+  caption: string;
+};
+
 type ContentKit = {
   twitter: {
     standalone_tweets: Tweet[];
@@ -22,6 +60,10 @@ type ContentKit = {
   linkedin: {
     posts: LinkedInPost[];
   };
+  newsletter: NewsletterContent;
+  blog: BlogContent;
+  shorts: ShortsContent;
+  carousel: CarouselContent;
 };
 
 type ProcessResponse = {
@@ -41,13 +83,22 @@ type JobResponse = {
 };
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+type ContentView = "twitter" | "linkedin" | "newsletter" | "blog" | "shorts" | "carousel";
+const contentViews: { key: ContentView; label: string }[] = [
+  { key: "twitter", label: "Twitter/X" },
+  { key: "linkedin", label: "LinkedIn" },
+  { key: "newsletter", label: "Newsletter" },
+  { key: "blog", label: "Blog" },
+  { key: "shorts", label: "Shorts" },
+  { key: "carousel", label: "Carousel" },
+];
 
 export default function Home() {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [transcriptText, setTranscriptText] = useState("");
   const [job, setJob] = useState<JobResponse | null>(null);
   const [pollUrl, setPollUrl] = useState<string | null>(null);
-  const [selectedView, setSelectedView] = useState<"twitter" | "linkedin">("twitter");
+  const [selectedView, setSelectedView] = useState<ContentView>("twitter");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -108,7 +159,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           youtube_url: youtubeUrl,
-          platforms: ["twitter", "linkedin"],
+          platforms: ["twitter", "linkedin", "newsletter", "blog", "shorts", "carousel"],
           transcript_text: transcriptText.trim() || undefined,
         }),
       });
@@ -252,32 +303,41 @@ function ContentResults({
   content: ContentKit;
   copiedKey: string | null;
   onCopy: (key: string, text: string) => Promise<void>;
-  selectedView: "twitter" | "linkedin";
-  setSelectedView: (view: "twitter" | "linkedin") => void;
+  selectedView: ContentView;
+  setSelectedView: (view: ContentView) => void;
 }) {
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-2 border border-[var(--border)]">
-        <button
-          className={tabClass(selectedView === "twitter")}
-          onClick={() => setSelectedView("twitter")}
-          type="button"
-        >
-          Twitter/X
-        </button>
-        <button
-          className={tabClass(selectedView === "linkedin")}
-          onClick={() => setSelectedView("linkedin")}
-          type="button"
-        >
-          LinkedIn
-        </button>
+      <div className="grid grid-cols-2 border border-[var(--border)] md:grid-cols-3 xl:grid-cols-6">
+        {contentViews.map((view) => (
+          <button
+            className={tabClass(selectedView === view.key)}
+            key={view.key}
+            onClick={() => setSelectedView(view.key)}
+            type="button"
+          >
+            {view.label}
+          </button>
+        ))}
       </div>
 
-      {selectedView === "twitter" ? (
+      {selectedView === "twitter" && (
         <TwitterResults content={content} copiedKey={copiedKey} onCopy={onCopy} />
-      ) : (
+      )}
+      {selectedView === "linkedin" && (
         <LinkedInResults content={content} copiedKey={copiedKey} onCopy={onCopy} />
+      )}
+      {selectedView === "newsletter" && (
+        <NewsletterResults content={content.newsletter} copiedKey={copiedKey} onCopy={onCopy} />
+      )}
+      {selectedView === "blog" && (
+        <BlogResults content={content.blog} copiedKey={copiedKey} onCopy={onCopy} />
+      )}
+      {selectedView === "shorts" && (
+        <ShortsResults content={content.shorts} copiedKey={copiedKey} onCopy={onCopy} />
+      )}
+      {selectedView === "carousel" && (
+        <CarouselResults content={content.carousel} copiedKey={copiedKey} onCopy={onCopy} />
       )}
     </div>
   );
@@ -369,6 +429,147 @@ function LinkedInResults({
         );
       })}
     </div>
+  );
+}
+
+function NewsletterResults({
+  content,
+  copiedKey,
+  onCopy,
+}: {
+  content: NewsletterContent;
+  copiedKey: string | null;
+  onCopy: (key: string, text: string) => Promise<void>;
+}) {
+  const text = `Subject options:\n${content.subject_lines.join("\n")}\n\n${content.preview_text}\n\n${content.body}\n\n${content.cta}`;
+  return (
+    <section className="mt-5 border border-[var(--border)] p-4">
+      <h3 className="font-semibold">Newsletter draft</h3>
+      <ul className="mt-3 grid gap-2 text-sm">
+        {content.subject_lines.map((subject) => (
+          <li className="border border-[var(--border)] px-3 py-2" key={subject}>
+            {subject}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-4 text-sm text-[var(--muted)]">{content.preview_text}</p>
+      <p className="mt-4 whitespace-pre-wrap text-sm leading-6">{content.body}</p>
+      <p className="mt-4 text-sm font-medium">{content.cta}</p>
+      <CopyButton copied={copiedKey === "newsletter"} onClick={() => onCopy("newsletter", text)} />
+    </section>
+  );
+}
+
+function BlogResults({
+  content,
+  copiedKey,
+  onCopy,
+}: {
+  content: BlogContent;
+  copiedKey: string | null;
+  onCopy: (key: string, text: string) => Promise<void>;
+}) {
+  const text = [
+    content.title,
+    content.meta_description,
+    content.introduction,
+    ...content.sections.map((section) => `${section.heading}\n${section.body}`),
+    content.conclusion,
+  ].join("\n\n");
+  return (
+    <section className="mt-5 border border-[var(--border)] p-4">
+      <h3 className="text-lg font-semibold">{content.title}</h3>
+      <p className="mt-2 text-sm text-[var(--muted)]">{content.meta_description}</p>
+      <p className="mt-4 text-sm leading-6">{content.introduction}</p>
+      <div className="mt-4 grid gap-4">
+        {content.sections.map((section) => (
+          <div key={section.heading}>
+            <h4 className="font-medium">{section.heading}</h4>
+            <p className="mt-2 text-sm leading-6">{section.body}</p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 text-sm font-medium">{content.conclusion}</p>
+      <CopyButton copied={copiedKey === "blog"} onClick={() => onCopy("blog", text)} />
+    </section>
+  );
+}
+
+function ShortsResults({
+  content,
+  copiedKey,
+  onCopy,
+}: {
+  content: ShortsContent;
+  copiedKey: string | null;
+  onCopy: (key: string, text: string) => Promise<void>;
+}) {
+  return (
+    <div className="mt-5 grid gap-4">
+      {content.clips.map((clip, index) => {
+        const text = `${clip.title}\n${clip.start_seconds}s-${clip.end_seconds}s\n${clip.hook}\n\n${clip.script}`;
+        return (
+          <article className="border border-[var(--border)] p-4" key={`${clip.title}-${index}`}>
+            <p className="font-semibold">{clip.title}</p>
+            <p className="mt-1 text-sm text-[var(--muted)]">
+              {clip.start_seconds}s-{clip.end_seconds}s
+            </p>
+            <p className="mt-3 text-sm leading-6">{clip.hook}</p>
+            <p className="mt-3 text-sm leading-6">{clip.script}</p>
+            <CopyButton
+              copied={copiedKey === `short-${index}`}
+              onClick={() => onCopy(`short-${index}`, text)}
+            />
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function CarouselResults({
+  content,
+  copiedKey,
+  onCopy,
+}: {
+  content: CarouselContent;
+  copiedKey: string | null;
+  onCopy: (key: string, text: string) => Promise<void>;
+}) {
+  const text = [
+    content.title,
+    ...content.slides.map((slide) => `${slide.slide_number}. ${slide.headline}\n${slide.body}`),
+    content.caption,
+  ].join("\n\n");
+  return (
+    <section className="mt-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-semibold">{content.title}</h3>
+        <CopyButton copied={copiedKey === "carousel"} onClick={() => onCopy("carousel", text)} />
+      </div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {content.slides.map((slide) => (
+          <article className="border border-[var(--border)] p-4" key={slide.slide_number}>
+            <p className="text-sm text-[var(--muted)]">Slide {slide.slide_number}</p>
+            <p className="mt-2 font-medium">{slide.headline}</p>
+            <p className="mt-2 text-sm leading-6">{slide.body}</p>
+          </article>
+        ))}
+      </div>
+      <p className="mt-4 border border-[var(--border)] p-3 text-sm leading-6">{content.caption}</p>
+    </section>
+  );
+}
+
+function CopyButton({ copied, onClick }: { copied: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="mt-4 border border-[var(--border)] px-3 py-1 text-sm hover:border-[var(--accent)]"
+      onClick={onClick}
+      type="button"
+    >
+      {copied ? "Copied" : "Copy"}
+    </button>
   );
 }
 

@@ -2,7 +2,11 @@ import pytest
 
 from app.agents.graph import run_pipeline_for_transcript
 from app.agents.nodes.analyzer import analyze_content
+from app.agents.nodes.generators.blog import generate_blog
+from app.agents.nodes.generators.carousel import generate_carousel
 from app.agents.nodes.generators.linkedin import generate_linkedin
+from app.agents.nodes.generators.newsletter import generate_newsletter
+from app.agents.nodes.generators.shorts import generate_shorts
 from app.agents.nodes.generators.twitter import generate_twitter
 from app.schemas.transcript import Transcript, TranscriptSegment
 from app.services.transcript import extract_youtube_video_id, transcript_from_text
@@ -61,12 +65,20 @@ def test_generators_return_valid_platform_contracts() -> None:
 
     twitter = generate_twitter(analysis)
     linkedin = generate_linkedin(analysis)
+    newsletter = generate_newsletter(analysis)
+    blog = generate_blog(analysis)
+    shorts = generate_shorts(analysis)
+    carousel = generate_carousel(analysis)
 
     assert len(twitter.standalone_tweets) == 5
     assert len(twitter.thread) >= 5
     assert all(len(tweet.text) <= 280 for tweet in twitter.standalone_tweets + twitter.thread)
     assert len(linkedin.posts) == 2
     assert all(post.text.count("\n\n") == 2 for post in linkedin.posts)
+    assert len(newsletter.subject_lines) == 3
+    assert len(blog.sections) >= 3
+    assert len(shorts.clips) >= 3
+    assert len(carousel.slides) >= 6
 
 
 def test_pipeline_runs_end_to_end_from_transcript() -> None:
@@ -84,4 +96,7 @@ def test_pipeline_runs_end_to_end_from_transcript() -> None:
     assert result.analysis.key_ideas
     assert result.content.twitter.thread
     assert result.content.linkedin.posts
-
+    assert result.content.newsletter.body
+    assert result.content.blog.sections
+    assert result.content.shorts.clips
+    assert result.content.carousel.slides

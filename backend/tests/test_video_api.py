@@ -31,6 +31,10 @@ def test_process_video_creates_completed_job_with_transcript_override() -> None:
     assert job["progress"] == 100
     assert len(job["content"]["twitter"]["standalone_tweets"]) == 5
     assert len(job["content"]["linkedin"]["posts"]) == 2
+    assert len(job["content"]["newsletter"]["subject_lines"]) == 3
+    assert len(job["content"]["blog"]["sections"]) >= 3
+    assert len(job["content"]["shorts"]["clips"]) >= 3
+    assert len(job["content"]["carousel"]["slides"]) >= 6
 
 
 def test_get_video_job_returns_404_for_unknown_job() -> None:
@@ -39,4 +43,3 @@ def test_get_video_job_returns_404_for_unknown_job() -> None:
     response = client.get("/api/videos/00000000-0000-0000-0000-000000000000")
 
     assert response.status_code == 404
-

@@ -56,6 +56,60 @@ def test_generated_content_schema_accepts_json_payload() -> None:
                 },
             ],
         },
+        "newsletter": {
+            "platform": "newsletter",
+            "subject_lines": ["One", "Two", "Three"],
+            "preview_text": "Preview",
+            "body": "Newsletter body",
+            "cta": "Read more",
+        },
+        "blog": {
+            "platform": "blog",
+            "title": "Blog title",
+            "meta_description": "Meta description",
+            "introduction": "Intro",
+            "sections": [
+                {"heading": "One", "body": "Body"},
+                {"heading": "Two", "body": "Body"},
+                {"heading": "Three", "body": "Body"},
+            ],
+            "conclusion": "Conclusion",
+        },
+        "shorts": {
+            "platform": "shorts",
+            "clips": [
+                {
+                    "title": "Clip",
+                    "start_seconds": 0,
+                    "end_seconds": 30,
+                    "hook": "Hook",
+                    "script": "Script",
+                },
+                {
+                    "title": "Clip",
+                    "start_seconds": 30,
+                    "end_seconds": 60,
+                    "hook": "Hook",
+                    "script": "Script",
+                },
+                {
+                    "title": "Clip",
+                    "start_seconds": 60,
+                    "end_seconds": 90,
+                    "hook": "Hook",
+                    "script": "Script",
+                },
+            ],
+        },
+        "carousel": {
+            "platform": "carousel",
+            "title": "Carousel",
+            "slides": [
+                {"slide_number": index, "headline": f"Slide {index}", "body": "Body"}
+                for index in range(1, 7)
+            ],
+            "caption": "Caption",
+        },
     }
 
     assert GeneratedContentKit.model_validate(payload).twitter.thread[0].text == "Thread 0"

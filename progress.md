@@ -71,23 +71,23 @@
 
 ## Phase 3 - All Platforms + Voice Matching
 
-- [ ] Build newsletter generator schema
-- [ ] Build newsletter generator node and prompts
-- [ ] Build blog generator schema
-- [ ] Build blog generator node and prompts
-- [ ] Build YouTube Shorts script schema
-- [ ] Build Shorts generator node and timestamp contract
-- [ ] Build Instagram carousel schema
-- [ ] Build carousel generator node and prompts
-- [ ] Add all platform generators to pipeline
+- [x] Build newsletter generator schema
+- [x] Build newsletter generator node and deterministic prompt contract
+- [x] Build blog generator schema
+- [x] Build blog generator node and deterministic prompt contract
+- [x] Build YouTube Shorts script schema
+- [x] Build Shorts generator node and timestamp contract
+- [x] Build Instagram carousel schema
+- [x] Build carousel generator node and deterministic prompt contract
+- [x] Add all platform generators to pipeline
 - [ ] Run platform generators in parallel where practical
-- [ ] Build voice profile request/response schema
-- [ ] Build voice profile extraction logic
+- [x] Build voice profile request/response schema
+- [x] Build voice profile extraction logic
 - [ ] Add voice profile persistence model
-- [ ] Add voice profile API endpoint
+- [x] Add voice profile API endpoint
 - [ ] Inject voice profile into generator context
 - [ ] Build frontend voice profile settings flow
-- [ ] Expand frontend content kit tabs for all platforms
+- [x] Expand frontend content kit tabs for all platforms
 - [ ] Test output with five creator voice profiles
 
 ## Phase 4 - Auth, Payments, and Quotas
@@ -148,4 +148,3 @@
 - [ ] Add shared voice profiles
 - [ ] Add Agency plan API access
 - [ ] Build analytics dashboard
-
