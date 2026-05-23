@@ -64,7 +64,7 @@
 - [x] Verify frontend production build
 - [x] Live smoke test API process/poll completion
 - [ ] Run Postgres migration against local Docker Postgres
-- [ ] Switch default job persistence from JSON store to Postgres repository
+- [x] Switch default job persistence from JSON store to Postgres repository
 - [ ] Run ARQ worker end-to-end with Redis enabled
 - [ ] Add browser end-to-end test for paste URL to rendered content
 - [ ] Wire real transcript fetching into default local flow after installing transcript extra
@@ -80,12 +80,12 @@
 - [x] Build Instagram carousel schema
 - [x] Build carousel generator node and deterministic prompt contract
 - [x] Add all platform generators to pipeline
-- [ ] Run platform generators in parallel where practical
+- [x] Run platform generators in parallel where practical
 - [x] Build voice profile request/response schema
 - [x] Build voice profile extraction logic
-- [ ] Add voice profile persistence model
+- [x] Add voice profile persistence model
 - [x] Add voice profile API endpoint
-- [ ] Inject voice profile into generator context
+- [x] Inject voice profile into generator context
 - [ ] Build frontend voice profile settings flow
 - [x] Expand frontend content kit tabs for all platforms
 - [ ] Test output with five creator voice profiles

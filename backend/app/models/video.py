@@ -31,6 +31,7 @@ class VideoJobModel(Base):
     status_detail: Mapped[str] = mapped_column(Text, nullable=False)
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     transcript_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    voice_profile_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

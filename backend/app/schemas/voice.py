@@ -1,4 +1,5 @@
 from uuid import UUID
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -20,4 +21,9 @@ class VoiceProfileResponse(BaseModel):
     id: UUID
     name: str
     extracted_style: VoiceStyle
+    created_at: datetime | None = None
 
+
+class VoiceProfileListResponse(BaseModel):
+    profiles: list[VoiceProfileResponse]
+    total: int

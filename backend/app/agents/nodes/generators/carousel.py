@@ -1,8 +1,15 @@
+from __future__ import annotations
+
 from app.schemas.analysis import ContentAnalysis
 from app.schemas.generation import CarouselContent, CarouselSlide
+from app.schemas.voice import VoiceStyle
 
 
-def generate_carousel(analysis: ContentAnalysis) -> CarouselContent:
+def generate_carousel(
+    analysis: ContentAnalysis, voice_style: VoiceStyle | None = None
+) -> CarouselContent:
+    caption_suffix = _voice_caption_suffix(analysis.audience_takeaway, voice_style)
+
     slides = [
         CarouselSlide(
             slide_number=1,
@@ -40,5 +47,18 @@ def generate_carousel(analysis: ContentAnalysis) -> CarouselContent:
     return CarouselContent(
         title=analysis.hook[:100],
         slides=slides[:10],
-        caption=f"Save this if you want to repurpose videos without flattening the story. {analysis.audience_takeaway}",
+        caption=f"Save this if you want to repurpose videos without flattening the story. {caption_suffix}",
     )
+
+
+def _voice_caption_suffix(takeaway: str, voice_style: VoiceStyle | None) -> str:
+    if voice_style is None:
+        return takeaway
+    tone = voice_style.tone
+    if tone == "direct and contrarian":
+        return f"The honest version: {takeaway}"
+    if tone == "practical and instructional":
+        return f"Action step: {takeaway}"
+    if tone == "reflective and narrative":
+        return f"The lesson I keep sharing: {takeaway}"
+    return takeaway

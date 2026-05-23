@@ -6,12 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import jwt
 
 from app.config import get_settings
-from app.db.session import AsyncSessionLocal
+from app.db import session as _session_module
 from app.models.user import UserModel
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    async with _session_module.AsyncSessionLocal() as session:
         yield session
 
 

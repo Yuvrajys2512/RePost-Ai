@@ -20,7 +20,7 @@ class QueueDispatchResult:
 async def enqueue_video_job(
     job_id: UUID,
     background_tasks: BackgroundTasks,
-    use_db: bool = False,
+    use_db: bool = True,
 ) -> QueueDispatchResult:
     settings = get_settings()
     

@@ -16,7 +16,7 @@ from app.schemas.video import (
     VideoJobResponse,
     VideoJobStatus,
 )
-from app.schemas.voice import VoiceProfileRequest, VoiceProfileResponse, VoiceStyle
+from app.schemas.voice import VoiceProfileListResponse, VoiceProfileRequest, VoiceProfileResponse, VoiceStyle
 
 __all__ = [
     "ContentAnalysis",
@@ -34,6 +34,7 @@ __all__ = [
     "TwitterTweet",
     "VideoJobResponse",
     "VideoJobStatus",
+    "VoiceProfileListResponse",
     "VoiceProfileRequest",
     "VoiceProfileResponse",
     "VoiceStyle",

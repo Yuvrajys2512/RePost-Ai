@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+
 from pydantic import BaseModel
 
 from app.agents.nodes.analyzer import analyze_content
@@ -12,6 +14,7 @@ from app.agents.nodes.generators.twitter import generate_twitter
 from app.schemas.analysis import ContentAnalysis
 from app.schemas.generation import GeneratedContentKit
 from app.schemas.transcript import Transcript
+from app.schemas.voice import VoiceStyle
 from app.services.transcript import TranscriptService
 
 
@@ -21,16 +24,31 @@ class PipelineResult(BaseModel):
     content: GeneratedContentKit
 
 
-def run_pipeline_for_transcript(transcript: Transcript, *, title: str | None = None) -> PipelineResult:
+def run_pipeline_for_transcript(
+    transcript: Transcript,
+    *,
+    title: str | None = None,
+    voice_style: VoiceStyle | None = None,
+) -> PipelineResult:
     analysis = analyze_content(transcript, title=title)
-    content = GeneratedContentKit(
-        twitter=generate_twitter(analysis),
-        linkedin=generate_linkedin(analysis),
-        newsletter=generate_newsletter(analysis),
-        blog=generate_blog(analysis),
-        shorts=generate_shorts(analysis),
-        carousel=generate_carousel(analysis),
-    )
+
+    with ThreadPoolExecutor() as executor:
+        future_twitter = executor.submit(generate_twitter, analysis, voice_style)
+        future_linkedin = executor.submit(generate_linkedin, analysis, voice_style)
+        future_newsletter = executor.submit(generate_newsletter, analysis, voice_style)
+        future_blog = executor.submit(generate_blog, analysis, voice_style)
+        future_shorts = executor.submit(generate_shorts, analysis, voice_style)
+        future_carousel = executor.submit(generate_carousel, analysis, voice_style)
+
+        content = GeneratedContentKit(
+            twitter=future_twitter.result(),
+            linkedin=future_linkedin.result(),
+            newsletter=future_newsletter.result(),
+            blog=future_blog.result(),
+            shorts=future_shorts.result(),
+            carousel=future_carousel.result(),
+        )
+
     return PipelineResult(transcript=transcript, analysis=analysis, content=content)
 
 

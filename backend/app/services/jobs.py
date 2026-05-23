@@ -198,7 +198,7 @@ def _load_transcript(youtube_url: str, transcript_text: str | None):
 # --- PostgreSQL DB Persistence Engine ---
 
 from sqlalchemy import delete, select
-from app.db.session import AsyncSessionLocal
+from app.db import session as _session_module
 from app.models.video import VideoJobModel, GeneratedContentModel
 
 
@@ -229,7 +229,7 @@ def map_model_to_response(job_model: VideoJobModel) -> VideoJobResponse:
 
 
 async def process_video_job_db(job_id: str) -> None:
-    async with AsyncSessionLocal() as db:
+    async with _session_module.AsyncSessionLocal() as db:
         # Retrieve video job from PostgreSQL
         result = await db.execute(
             select(VideoJobModel).where(VideoJobModel.id == job_id)
@@ -252,8 +252,23 @@ async def process_video_job_db(job_id: str) -> None:
             job.updated_at = datetime.now(UTC)
             await db.commit()
 
-            # Execute LangGraph pipeline
-            result_kit = run_pipeline_for_transcript(transcript)
+            # Resolve voice profile if one was selected for this job
+            voice_style = None
+            if job.voice_profile_id:
+                from app.models.voice import VoiceProfileModel
+                from app.schemas.voice import VoiceStyle as VoiceStyleSchema
+                vp_result = await db.execute(
+                    select(VoiceProfileModel).where(VoiceProfileModel.id == job.voice_profile_id)
+                )
+                voice_profile = vp_result.scalar_one_or_none()
+                if voice_profile:
+                    try:
+                        voice_style = VoiceStyleSchema(**voice_profile.style)
+                    except Exception:
+                        voice_style = None
+
+            # Execute pipeline with optional voice injection
+            result_kit = run_pipeline_for_transcript(transcript, voice_style=voice_style)
 
             job.status_detail = "Generating platform content"
             job.progress = 85

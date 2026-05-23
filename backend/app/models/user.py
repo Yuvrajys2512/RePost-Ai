@@ -11,6 +11,7 @@ from app.models.base import Base
 
 if TYPE_CHECKING:
     from app.models.video import VideoJobModel
+    from app.models.voice import VoiceProfileModel
 
 
 class UserModel(Base):
@@ -47,6 +48,10 @@ class UserModel(Base):
         cascade="all, delete-orphan",
     )
     api_keys: Mapped[list[ApiKeyModel]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    voice_profiles: Mapped[list[VoiceProfileModel]] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",
     )

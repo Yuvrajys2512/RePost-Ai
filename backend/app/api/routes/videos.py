@@ -40,6 +40,7 @@ async def process_video(
         user_id=current_user.id,
         youtube_url=str(payload.youtube_url),
         transcript_text=payload.transcript_text,
+        voice_profile_id=str(payload.voice_profile_id) if payload.voice_profile_id else None,
         status=VideoJobStatus.QUEUED.value,
         status_detail="Queued for transcript extraction",
         progress=0,

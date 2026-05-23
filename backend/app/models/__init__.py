@@ -3,7 +3,8 @@
 from app.models.base import Base
 from app.models.user import UserModel, UsageLogModel, ApiKeyModel
 from app.models.video import GeneratedContentModel, VideoJobModel
+from app.models.voice import VoiceProfileModel
 
-__all__ = ["Base", "UserModel", "UsageLogModel", "ApiKeyModel", "GeneratedContentModel", "VideoJobModel"]
+__all__ = ["Base", "UserModel", "UsageLogModel", "ApiKeyModel", "GeneratedContentModel", "VideoJobModel", "VoiceProfileModel"]
 
 
