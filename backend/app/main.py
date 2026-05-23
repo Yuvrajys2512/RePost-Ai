@@ -1,8 +1,17 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import router as api_router
 from app.config import get_settings
+from app.db.session import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Automatically synchronize database schemas
+    await init_db()
+    yield
 
 
 def create_app() -> FastAPI:
@@ -11,6 +20,7 @@ def create_app() -> FastAPI:
         title="RePost AI API",
         version="0.1.0",
         description="API for repurposing YouTube videos into platform-native content.",
+        lifespan=lifespan,
     )
 
     app.add_middleware(

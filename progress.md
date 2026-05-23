@@ -92,22 +92,22 @@
 
 ## Phase 4 - Auth, Payments, and Quotas
 
-- [ ] Integrate Supabase Auth
-- [ ] Add email login
-- [ ] Add Google OAuth login
-- [ ] Add auth middleware for protected API routes
-- [ ] Add protected dashboard layout
-- [ ] Add user model and profile data
-- [ ] Add plan/quota model
-- [ ] Add free tier quota enforcement
-- [ ] Add usage tracking per user/month
-- [ ] Add dashboard usage display
-- [ ] Set up Lemon Squeezy or Stripe products
-- [ ] Add checkout flow
-- [ ] Add payment webhook handler
-- [ ] Update user plan from webhook events
-- [ ] Add billing management page
-- [ ] Test full signup to paid upgrade flow
+- [x] Integrate Supabase Auth
+- [x] Add email login
+- [x] Add Google OAuth login
+- [x] Add auth middleware for protected API routes
+- [x] Add protected dashboard layout
+- [x] Add user model and profile data
+- [x] Add plan/quota model
+- [x] Add free tier quota enforcement
+- [x] Add usage tracking per user/month
+- [x] Add dashboard usage display
+- [x] Set up Lemon Squeezy or Stripe products
+- [x] Add checkout flow
+- [x] Add payment webhook handler
+- [x] Update user plan from webhook events
+- [x] Add billing management page
+- [x] Test full signup to paid upgrade flow
 
 ## Phase 5 - Polish, Landing Page, and Launch Prep
 

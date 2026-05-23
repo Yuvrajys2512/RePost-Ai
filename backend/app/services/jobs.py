@@ -193,3 +193,97 @@ def _load_transcript(youtube_url: str, transcript_text: str | None):
         return transcript_from_text(fallback_text, video_id="fallback", source_url=youtube_url)
     except ValueError as exc:
         raise ValueError(str(exc)) from exc
+
+
+# --- PostgreSQL DB Persistence Engine ---
+
+from sqlalchemy import delete, select
+from app.db.session import AsyncSessionLocal
+from app.models.video import VideoJobModel, GeneratedContentModel
+
+
+def map_model_to_response(job_model: VideoJobModel) -> VideoJobResponse:
+    content_kit = None
+    if job_model.generated_content:
+        content_dict = {row.platform: row.payload for row in job_model.generated_content}
+        try:
+            content_kit = GeneratedContentKit.model_validate(content_dict)
+        except Exception:
+            content_kit = None
+
+    return VideoJobResponse(
+        job_id=UUID(job_model.id),
+        status=VideoJobStatus(job_model.status),
+        status_detail=job_model.status_detail,
+        progress=job_model.progress,
+        created_at=job_model.created_at,
+        updated_at=job_model.updated_at,
+        youtube_url=job_model.youtube_url,
+        content=content_kit,
+        error=job_model.error,
+    )
+
+
+async def process_video_job_db(job_id: str) -> None:
+    async with AsyncSessionLocal() as db:
+        # Retrieve video job from PostgreSQL
+        result = await db.execute(
+            select(VideoJobModel).where(VideoJobModel.id == job_id)
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            return
+
+        try:
+            job.status = VideoJobStatus.PROCESSING.value
+            job.status_detail = "Extracting transcript"
+            job.progress = 25
+            job.updated_at = datetime.now(UTC)
+            await db.commit()
+
+            transcript = _load_transcript(job.youtube_url, job.transcript_text)
+
+            job.status_detail = "Analyzing content"
+            job.progress = 55
+            job.updated_at = datetime.now(UTC)
+            await db.commit()
+
+            # Execute LangGraph pipeline
+            result_kit = run_pipeline_for_transcript(transcript)
+
+            job.status_detail = "Generating platform content"
+            job.progress = 85
+            job.updated_at = datetime.now(UTC)
+            await db.commit()
+
+            # Wipe out old content mapping (if rerun)
+            await db.execute(
+                delete(GeneratedContentModel).where(GeneratedContentModel.video_job_id == job_id)
+            )
+
+            # Insert generated contents for each platform
+            content_data = result_kit.content
+            for platform in ["twitter", "linkedin", "newsletter", "blog", "shorts", "carousel"]:
+                platform_field = getattr(content_data, platform, None)
+                if platform_field:
+                    content_row = GeneratedContentModel(
+                        video_job_id=job.id,
+                        platform=platform,
+                        payload=platform_field.model_dump(mode="json"),
+                    )
+                    db.add(content_row)
+
+            job.status = VideoJobStatus.COMPLETED.value
+            job.status_detail = "Content kit ready"
+            job.progress = 100
+            job.updated_at = datetime.now(UTC)
+            await db.commit()
+
+        except Exception as exc:
+            job.status = VideoJobStatus.FAILED.value
+            job.status_detail = "Pipeline failed"
+            job.progress = 100
+            job.error = str(exc)
+            job.updated_at = datetime.now(UTC)
+            await db.commit()
+
