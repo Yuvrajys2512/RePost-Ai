@@ -111,7 +111,21 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // App workspace tabs
-  const [activeTab, setActiveTab] = useState<"workspace" | "billing" | "history">("workspace");
+  const [activeTab, setActiveTab] = useState<"workspace" | "billing" | "history" | "analytics" | "calendar">("workspace");
+
+  // Analytics states
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // API Key management states
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [apiKeyName, setApiKeyName] = useState("");
+  const [creatingKey, setCreatingKey] = useState(false);
+  const [keysLoading, setKeysLoading] = useState(false);
+
+  // Calendar states
+  const [selectedCalendarCampaign, setSelectedCalendarCampaign] = useState<any>(null);
+  const [selectedCalendarPlatform, setSelectedCalendarPlatform] = useState<string | null>(null);
 
   // Video processing State
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -123,6 +137,145 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
+  // Fetch analytics helper
+  async function fetchAnalytics() {
+    setAnalyticsLoading(true);
+    try {
+      const data = await apiFetch("/api/analytics");
+      setAnalyticsData(data);
+    } catch (err) {
+      console.error("Could not fetch analytics data", err);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
+  // Fetch developer API keys
+  async function fetchApiKeys() {
+    if (userProfile?.plan !== "agency") return;
+    setKeysLoading(true);
+    try {
+      const keys = await apiFetch("/api/billing/keys");
+      setApiKeys(keys);
+    } catch (err) {
+      console.error("Could not fetch API keys", err);
+    } finally {
+      setKeysLoading(false);
+    }
+  }
+
+  // Create Developer API Key
+  async function handleCreateApiKey(e: FormEvent) {
+    e.preventDefault();
+    if (!apiKeyName.trim() || creatingKey) return;
+    setCreatingKey(true);
+    try {
+      const res = await apiFetch("/api/billing/keys", {
+        method: "POST",
+        json: { name: apiKeyName.trim() },
+      });
+      if (res.status === "success") {
+        setToastMessage("Developer API Key created successfully!");
+        setApiKeyName("");
+        fetchApiKeys();
+      }
+    } catch (err) {
+      setToastMessage("Could not create API key.");
+    } finally {
+      setCreatingKey(false);
+    }
+  }
+
+  // Revoke Developer API Key
+  async function handleRevokeApiKey(keyId: string) {
+    if (!confirm("Are you sure you want to revoke this API Key? Programmatic requests using it will fail immediately.")) return;
+    try {
+      const res = await apiFetch(`/api/billing/keys/${keyId}`, {
+        method: "DELETE",
+      });
+      if (res.status === "success") {
+        setToastMessage("API key revoked successfully.");
+        fetchApiKeys();
+      }
+    } catch (err) {
+      setToastMessage("Could not revoke API key.");
+    }
+  }
+
+  // Trigger loading analytics when tab is selected
+  useEffect(() => {
+    if (activeTab === "analytics") {
+      fetchAnalytics();
+    }
+  }, [activeTab]);
+
+  // Trigger loading API keys on billing tab when user has agency plan
+  useEffect(() => {
+    if (activeTab === "billing" && userProfile?.plan === "agency") {
+      fetchApiKeys();
+    }
+  }, [activeTab, userProfile?.plan]);
+
+  // Calendar weeks builder helper
+  const calendarWeeks = useMemo(() => {
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0 is Sunday, 1 is Monday
+    // Calculate Monday of this week
+    const mondayDiff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(today);
+    monday.setDate(today.getDate() + mondayDiff);
+
+    const weekDays = [];
+    const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weekDays.push({
+        name: dayNames[i],
+        date: d,
+        dateString: d.toLocaleDateString(),
+        formattedDate: d.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      });
+    }
+    return weekDays;
+  }, []);
+
+  function renderCalendarPlatformCopy(content: any, platform: string): string {
+    if (!content || !content[platform]) return "No content generated";
+    const data = content[platform];
+
+    switch (platform) {
+      case "twitter":
+        const standalones = data.standalone_tweets.map((t: any, i: number) => `Tweet Option ${i + 1}:\n${t.text}`).join("\n\n");
+        const thread = data.thread.map((t: any, i: number) => `${i + 1}. ${t.text}`).join("\n\n");
+        return `=== STANDALONE TWEETS ===\n\n${standalones}\n\n=== ENGAGEMENT THREAD ===\n\n${thread}`;
+      case "linkedin":
+        return data.posts.map((p: any, i: number) => `Post Option ${i + 1}:\nHook: ${p.hook}\n\n${p.body}\n\nCTA: ${p.cta}`).join("\n\n---\n\n");
+      case "newsletter":
+        return `Subject options:\n${data.subject_lines.join(" | ")}\nPreview: ${data.preview_text}\n\n${data.body}\n\nCTA: ${data.cta}`;
+      case "blog":
+        const sections = data.sections.map((s: any) => `H2: ${s.heading}\n${s.body}`).join("\n\n");
+        return `Title: ${data.title}\nSEO Meta: ${data.meta_description}\n\n${data.introduction}\n\n${sections}\n\nConclusion: ${data.conclusion}`;
+      case "shorts":
+        return data.clips.map((c: any, i: number) => `Short Clip ${i + 1} (${c.start_seconds}s - ${c.end_seconds}s):\nHook: ${c.hook}\nScript:\n${c.script}`).join("\n\n---\n\n");
+      case "carousel":
+        const slides = data.slides.map((s: any) => `Slide ${s.slide_number} [${s.headline}]:\n${s.body}`).join("\n\n");
+        return `Carousel Title: ${data.title}\n\n${slides}\n\nCaption outline:\n${data.caption}`;
+      default:
+        return JSON.stringify(data, null, 2);
+    }
+  }
+
+
+  // Exporter / Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Regeneration loading state in UI
+  const [isRegenerating, setIsRegenerating] = useState(false);
+
+  // Interactive Onboarding Walkthrough Steps (1 to 4, null if closed)
+  const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
+
   // History state
   const [history, setHistory] = useState<JobResponse[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -131,6 +284,27 @@ export default function Home() {
   const [billingLoading, setBillingLoading] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState<string | null>(null);
   const [simulatedPlan, setSimulatedPlan] = useState("starter");
+
+  // FAQ Accordion expanded state
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+
+  // Testimonials state
+  const [activeTestimonial, setActiveTestimonial] = useState(0);
+
+  // Youtube URL live validation
+  const isValidUrl = useMemo(() => {
+    if (!youtubeUrl) return true; // Empty is neutral
+    const regex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    return regex.test(youtubeUrl);
+  }, [youtubeUrl]);
+
+  // Toast auto-dismissal
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = window.setTimeout(() => setToastMessage(null), 3000);
+      return () => window.clearTimeout(timer);
+    }
+  }, [toastMessage]);
 
   // 1. Subscribe to Authentication state changes
   useEffect(() => {
@@ -164,6 +338,12 @@ export default function Home() {
     fetchUserProfile();
     fetchHistory();
     setAuthLoading(false);
+
+    // Auto-trigger onboarding walkthrough overlay for new users
+    const hasSeenTour = localStorage.getItem("repost_has_seen_tour");
+    if (!hasSeenTour) {
+      setOnboardingStep(1);
+    }
   }, [session]);
 
   // 3. Monitor checkout redirects and process mock upgrades
@@ -228,9 +408,9 @@ export default function Home() {
           setJob(nextJob);
           setError(nextJob.error);
           if (nextJob.status === "completed") {
-            // refresh profile usage and history
             fetchUserProfile();
             fetchHistory();
+            setToastMessage("Campaign content kit generated successfully!");
           }
         }
       } catch (err) {
@@ -249,8 +429,8 @@ export default function Home() {
   }, [job?.status, pollUrl]);
 
   const canSubmit = useMemo(() => {
-    return youtubeUrl.trim().length > 0 && !isSubmitting && hasRemainingQuota;
-  }, [isSubmitting, youtubeUrl, hasRemainingQuota]);
+    return youtubeUrl.trim().length > 0 && isValidUrl && !isSubmitting && hasRemainingQuota;
+  }, [isSubmitting, youtubeUrl, isValidUrl, hasRemainingQuota]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -285,7 +465,6 @@ export default function Home() {
         created_at: new Date().toISOString(),
       });
       
-      // Instantly increment local quota display for responsive feedback
       if (userProfile) {
         setUserProfile({
           ...userProfile,
@@ -299,10 +478,216 @@ export default function Home() {
     }
   }
 
-  async function copyText(key: string, text: string) {
+  async function copyText(key: string, text: string, platform?: string, contentId?: string) {
     await navigator.clipboard.writeText(text);
     setCopiedKey(key);
     window.setTimeout(() => setCopiedKey(null), 1400);
+
+    if (contentId && platform) {
+      try {
+        await apiFetch(`/api/content/${contentId}/track`, {
+          method: "POST",
+          json: { action: "content_copied", platform },
+        });
+      } catch (err) {
+        console.error("Could not track copy event", err);
+      }
+    }
+  }
+
+  // Handle single platform regeneration UI triggers
+  async function handleRegeneratePlatform() {
+    if (!job || isRegenerating) return;
+
+    setIsRegenerating(true);
+    setToastMessage(`Regenerating ${selectedView.toUpperCase()} copy...`);
+    try {
+      const res = await apiFetch(`/api/videos/${job.job_id}/regenerate`, {
+        method: "POST",
+        json: { platform: selectedView },
+      });
+
+      if (res.status === "success" && job.content) {
+        const updatedContent = {
+          ...job.content,
+          [selectedView]: res.payload,
+        };
+
+        setJob({
+          ...job,
+          content: updatedContent,
+        });
+        setToastMessage(`Refreshed ${selectedView.toUpperCase()} copy kit in place!`);
+      }
+    } catch (err) {
+      setToastMessage("Regeneration failed. Using fallback copy.");
+    } finally {
+      setIsRegenerating(false);
+    }
+  }
+
+  // Copy Entire Kit exporter
+  async function handleCopyEntireKit() {
+    if (!job || !job.content) return;
+
+    // Track export analytics for all platforms in this campaign
+    if (job.content_ids) {
+      for (const [platform, contentId] of Object.entries(job.content_ids)) {
+        try {
+          await apiFetch(`/api/content/${contentId}/track`, {
+            method: "POST",
+            json: { action: "content_copied", platform },
+          });
+        } catch (err) {
+          console.error("Could not track copy event for platform", platform, err);
+        }
+      }
+    }
+
+    const kit = job.content;
+    let formattedText = `=== REPOST AI CAMPAIGN KIT ===\nVideo URL: ${job.youtube_url}\n\n`;
+
+    // 1. Twitter
+    if (kit.twitter) {
+      formattedText += `--- TWITTER STANDALONE TWEETS ---\n`;
+      kit.twitter.standalone_tweets.forEach((t, i) => {
+        formattedText += `Tweet ${i + 1}:\n${t.text}\n\n`;
+      });
+      formattedText += `--- TWITTER THREAD ---\n`;
+      kit.twitter.thread.forEach((t, i) => {
+        formattedText += `${i + 1}. ${t.text}\n\n`;
+      });
+    }
+
+    // 2. LinkedIn
+    if (kit.linkedin) {
+      formattedText += `--- LINKEDIN POSTS ---\n`;
+      kit.linkedin.posts.forEach((p, i) => {
+        formattedText += `Post ${i + 1}:\n${p.hook}\n\n${p.body}\n\n${p.cta}\n\n`;
+      });
+    }
+
+    // 3. Newsletter
+    if (kit.newsletter) {
+      formattedText += `--- NEWSLETTER DRAFT ---\nSubject Lines: ${kit.newsletter.subject_lines.join(" | ")}\nPreview: ${kit.newsletter.preview_text}\n\n${kit.newsletter.body}\n\n${kit.newsletter.cta}\n\n`;
+    }
+
+    // 4. Blog
+    if (kit.blog) {
+      formattedText += `--- SEO BLOG POST ---\nTitle: ${kit.blog.title}\nSEO Meta: ${kit.blog.meta_description}\n\n${kit.blog.introduction}\n\n`;
+      kit.blog.sections.forEach((s) => {
+        formattedText += `H2: ${s.heading}\n${s.body}\n\n`;
+      });
+      formattedText += `Conclusion:\n${kit.blog.conclusion}\n\n`;
+    }
+
+    // 5. Shorts
+    if (kit.shorts) {
+      formattedText += `--- SHORTS VIDEO SCRIPTS ---\n`;
+      kit.shorts.clips.forEach((c) => {
+        formattedText += `Clip Title: ${c.title} (${c.start_seconds}s - ${c.end_seconds}s)\nHook: ${c.hook}\nScript: ${c.script}\n\n`;
+      });
+    }
+
+    // 6. Carousel
+    if (kit.carousel) {
+      formattedText += `--- INSTAGRAM CAROUSEL ---\nTitle: ${kit.carousel.title}\n`;
+      kit.carousel.slides.forEach((s) => {
+        formattedText += `Slide ${s.slide_number} [${s.headline}]:\n${s.body}\n\n`;
+      });
+      formattedText += `Caption:\n${kit.carousel.caption}\n\n`;
+    }
+
+    await navigator.clipboard.writeText(formattedText);
+    setToastMessage("Entire content kit copied to clipboard!");
+  }
+
+  // Download Markdown Campaign Exporter
+  async function handleDownloadMarkdown() {
+    if (!job || !job.content) return;
+
+    // Track export analytics for all platforms in this campaign
+    if (job.content_ids) {
+      for (const [platform, contentId] of Object.entries(job.content_ids)) {
+        try {
+          await apiFetch(`/api/content/${contentId}/track`, {
+            method: "POST",
+            json: { action: "content_exported", platform },
+          });
+        } catch (err) {
+          console.error("Could not track export event for platform", platform, err);
+        }
+      }
+    }
+
+    const kit = job.content;
+    let md = `# RePost AI Content Campaign Kit\n\n- **Source Video URL:** ${job.youtube_url}\n- **Date Compiled:** ${new Date(job.created_at).toLocaleDateString()}\n\n---\n\n`;
+
+    // 1. Twitter
+    if (kit.twitter) {
+      md += `## 🐦 Twitter/X Campaign\n\n### Standalone Copy Options\n\n`;
+      kit.twitter.standalone_tweets.forEach((t, i) => {
+        md += `> **Option ${i + 1}**\n> ${t.text}\n\n`;
+      });
+      md += `### Engagement Value Thread\n\n`;
+      kit.twitter.thread.forEach((t, i) => {
+        md += `${i + 1}. ${t.text}\n\n`;
+      });
+      md += `---\n\n`;
+    }
+
+    // 2. LinkedIn
+    if (kit.linkedin) {
+      md += `## 💼 LinkedIn Campaign\n\n`;
+      kit.linkedin.posts.forEach((p, i) => {
+        md += `### Post Outline ${i + 1}\n\n**Hook:** ${p.hook}\n\n**Body:**\n${p.body}\n\n**Call-To-Action:** *${p.cta}*\n\n---\n\n`;
+      });
+    }
+
+    // 3. Newsletter
+    if (kit.newsletter) {
+      md += `## 📧 Newsletter Draft\n\n- **Subject Line Options:**\n`;
+      kit.newsletter.subject_lines.forEach((s) => {
+        md += `  - ${s}\n`;
+      });
+      md += `- **Preview Text:** *${kit.newsletter.preview_text}*\n\n${kit.newsletter.body}\n\n**CTA Link:** [${kit.newsletter.cta}](${job.youtube_url})\n\n---\n\n`;
+    }
+
+    // 4. Blog
+    if (kit.blog) {
+      md += `## 📝 SEO Optimized Blog Post\n\n# ${kit.blog.title}\n\n*Meta Description: ${kit.blog.meta_description}*\n\n${kit.blog.introduction}\n\n`;
+      kit.blog.sections.forEach((s) => {
+        md += `## ${s.heading}\n\n${s.body}\n\n`;
+      });
+      md += `### Conclusion\n\n${kit.blog.conclusion}\n\n---\n\n`;
+    }
+
+    // 5. Shorts
+    if (kit.shorts) {
+      md += `## 🎥 YouTube Shorts & Reels Scripts\n\n`;
+      kit.shorts.clips.forEach((c, i) => {
+        md += `### Clip ${i + 1}: ${c.title}\n- **Timestamps:** ${c.start_seconds}s - ${c.end_seconds}s\n- **Hook Beat:** ${c.hook}\n\n**Narrative Script:**\n${c.script}\n\n---\n\n`;
+      });
+    }
+
+    // 6. Carousel
+    if (kit.carousel) {
+      md += `## 📸 Instagram Carousel Outline\n\n# ${kit.carousel.title}\n\n`;
+      kit.carousel.slides.forEach((s) => {
+        md += `### Slide ${s.slide_number}\n**Headline:** ${s.headline}\n**Body Text:** ${s.body}\n\n`;
+      });
+      md += `### Caption Copy\n\`\`\`text\n${kit.carousel.caption}\n\`\`\`\n`;
+    }
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `repost_campaign_${job.job_id.slice(0, 8)}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setToastMessage("Markdown campaign file downloaded successfully!");
   }
 
   // Handle live checkout upgrade redirection
@@ -341,6 +726,23 @@ export default function Home() {
     }
   }
 
+  // Onboarding walkthrough controls
+  function handleNextOnboarding() {
+    if (onboardingStep === null) return;
+    if (onboardingStep < 4) {
+      setOnboardingStep(onboardingStep + 1);
+    } else {
+      setOnboardingStep(null);
+      localStorage.setItem("repost_has_seen_tour", "true");
+      setToastMessage("Onboarding tour complete! Enjoy repurposing.");
+    }
+  }
+
+  function handleSkipOnboarding() {
+    setOnboardingStep(null);
+    localStorage.setItem("repost_has_seen_tour", "true");
+  }
+
   // Auth logout routine
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -361,7 +763,7 @@ export default function Home() {
   // 5. Landing page for unauthenticated visitors
   if (!session) {
     return (
-      <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)] scroll-smooth">
         {/* Navigation */}
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5 border-b border-[var(--border)]">
           <div className="flex items-center gap-2">
@@ -370,12 +772,12 @@ export default function Home() {
             </span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/auth/login" className="text-sm font-medium hover:text-[var(--accent)]">
+            <Link href="/auth/login" className="text-sm font-semibold hover:text-[var(--accent)] transition-colors">
               Sign In
             </Link>
             <Link
               href="/auth/signup"
-              className="bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-strong)] shadow-md"
+              className="bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-strong)] shadow-md transition-all hover:scale-[1.02]"
             >
               Get Started Free
             </Link>
@@ -384,10 +786,10 @@ export default function Home() {
 
         {/* Hero Section */}
         <section className="mx-auto max-w-4xl px-6 py-20 text-center">
-          <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1 uppercase tracking-wider">
-            Next-Gen Content Repurposing Agent
+          <span className="bg-emerald-100 text-emerald-800 text-xs font-semibold px-3 py-1 uppercase tracking-wider rounded-full shadow-sm">
+            ✨ Complete Creator Repurposing Toolkit
           </span>
-          <h1 className="mt-6 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
+          <h1 className="mt-8 text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl">
             Repurpose YouTube Videos Into <br />
             <span className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-strong)] bg-clip-text text-transparent">
               Ready-to-Publish
@@ -400,7 +802,7 @@ export default function Home() {
           <div className="mt-10 flex items-center justify-center gap-4">
             <Link
               href="/auth/signup"
-              className="bg-[var(--accent)] px-6 py-3.5 text-base font-semibold text-white hover:bg-[var(--accent-strong)] shadow-lg hover:shadow-xl transition-all"
+              className="bg-[var(--accent)] px-6 py-3.5 text-base font-semibold text-white hover:bg-[var(--accent-strong)] shadow-lg hover:shadow-xl transition-all hover:scale-[1.03]"
             >
               Start Repurposing Free
             </Link>
@@ -410,6 +812,63 @@ export default function Home() {
             >
               View Pricing
             </a>
+          </div>
+        </section>
+
+        {/* Testimonials Carousel Section */}
+        <section className="mx-auto max-w-5xl px-6 py-12 border-t border-[var(--border)]">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold tracking-tight">Trusted by creator machines</h2>
+            <p className="mt-1 text-sm text-[var(--muted)]">See how 100K+ creators multiply their reach</p>
+          </div>
+
+          <div className="mt-8 bg-white border border-[var(--border)] p-8 shadow-sm relative overflow-hidden">
+            {[
+              {
+                quote: "RePost AI completely changed my editing cycle. It used to take me 2 days to draft posts, newsletter outlines, and blogs for my videos. Now I just copy and adjust in 2 minutes.",
+                author: "Devin Allen",
+                subscribers: "142K Subscribers",
+                niche: "Tech & Coding",
+              },
+              {
+                quote: "The LinkedIn posts generated by RePost actually sound organic and drive major comments. It hooks readers exactly the way I did in the video, rather than sounding like normal chatgpt trash.",
+                author: "Sarah Jenkins",
+                subscribers: "450K Subscribers",
+                niche: "Startup & Marketing",
+              },
+              {
+                quote: "Timestamps matching scripts for Shorts is amazing. Our editing team instantly pulls 3-5 vertical clips from my long-form uploads using the calculated timestamps in RePost.",
+                author: "Marcus Stone",
+                subscribers: "88K Subscribers",
+                niche: "Fitness & Lifestyle",
+              },
+            ].map((t, i) => (
+              <div
+                key={i}
+                className={`transition-opacity duration-300 ${
+                  activeTestimonial === i ? "block" : "hidden"
+                }`}
+              >
+                <p className="text-base italic leading-7 text-[var(--foreground)]">"{t.quote}"</p>
+                <div className="mt-6 flex items-center justify-between">
+                  <div>
+                    <p className="font-bold text-sm text-black">{t.author}</p>
+                    <p className="text-xs text-[var(--muted)]">{t.subscribers} • {t.niche}</p>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2].map((dot) => (
+                      <button
+                        key={dot}
+                        onClick={() => setActiveTestimonial(dot)}
+                        className={`h-2.5 w-2.5 rounded-full ${
+                          activeTestimonial === dot ? "bg-[var(--accent)]" : "bg-slate-200"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -510,13 +969,126 @@ export default function Home() {
             </div>
           </div>
         </section>
+
+        {/* FAQs Section */}
+        <section className="mx-auto max-w-4xl px-6 py-20 border-t border-[var(--border)]">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold tracking-tight">Frequently Asked Questions</h2>
+            <p className="mt-2 text-base text-[var(--muted)]">Everything you need to know about RePost AI</p>
+          </div>
+
+          <div className="space-y-4">
+            {[
+              {
+                q: "How does RePost AI learn my unique brand voice?",
+                a: "In your Voice Profile settings, you paste 3 to 10 samples of your best past newsletter issues, tweets, or blog drafts. Our analyzer node extracts stylistic features (sentence pacing, emoticon counts, vocabulary complexity) and feeds it directly as a context schema into all generator models.",
+              },
+              {
+                q: "What happens if a video has disabled or missing auto-captions?",
+                a: "If our default fast API extractors encounter a video without captions, we trigger a helpful fallback notice. You can instantly copy-paste any transcript text directly into the 'Transcript override' box in your workspace to complete the conversion.",
+              },
+              {
+                q: "How does the monthly quota cycle reset?",
+                a: "Each account runs on a 30-day billing cycle. At the end of each cycle, your processed counter resets to zero automatically. If you run out of runs early, you can instantly upgrade plan tiers via the Billing tab.",
+              },
+            ].map((faq, index) => (
+              <div className="border border-[var(--border)] bg-white" key={index}>
+                <button
+                  onClick={() => setExpandedFaq(expandedFaq === index ? null : index)}
+                  className="flex w-full items-center justify-between p-5 text-left font-semibold text-sm text-black"
+                >
+                  <span>{faq.q}</span>
+                  <span className="text-lg font-bold">{expandedFaq === index ? "−" : "+"}</span>
+                </button>
+                {expandedFaq === index && (
+                  <div className="p-5 border-t border-[var(--border)] text-xs leading-6 text-[var(--muted)]">
+                    {faq.a}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       </main>
     );
   }
 
   // 6. Logged-in Dashboard Workspace Panel
   return (
-    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)] px-4 py-6 sm:px-6">
+    <main className="min-h-screen bg-[var(--background)] text-[var(--foreground)] px-4 py-6 sm:px-6 relative">
+      
+      {/* Dynamic Toast Notifications */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1e293b] text-white text-xs px-4 py-3 shadow-xl flex items-center gap-2 border border-slate-700 animate-slide-in">
+          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          {toastMessage}
+        </div>
+      )}
+
+      {/* Interactive Onboarding Walkthrough Overlays */}
+      {onboardingStep !== null && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-[var(--accent)] p-6 max-w-md w-full shadow-2xl relative">
+            <span className="absolute top-4 right-4 text-xs font-bold text-[var(--accent)]">
+              Step {onboardingStep} of 4
+            </span>
+            
+            {onboardingStep === 1 && (
+              <div>
+                <h4 className="text-base font-bold text-black flex items-center gap-1">📺 YouTube URL Input</h4>
+                <p className="text-xs text-[var(--muted)] leading-5 mt-2">
+                  Paste your YouTube video link in the URL field. RePost AI will automatically extract the auto-captions to feed into the AI agent.
+                </p>
+              </div>
+            )}
+            
+            {onboardingStep === 2 && (
+              <div>
+                <h4 className="text-base font-bold text-black flex items-center gap-1">📝 Transcript Overrides</h4>
+                <p className="text-xs text-[var(--muted)] leading-5 mt-2">
+                  If captions are disabled on the video, no worries! Just paste the script or transcript text in the optional text area override box.
+                </p>
+              </div>
+            )}
+
+            {onboardingStep === 3 && (
+              <div>
+                <h4 className="text-base font-bold text-black flex items-center gap-1">⚙️ Social Campaign Workspace</h4>
+                <p className="text-xs text-[var(--muted)] leading-5 mt-2">
+                  Watch the agent progression in real-time. Toggle Twitter Standalones, Threads, LinkedIn hooks, Blogs, and Carousel slides, and download them cleanly.
+                </p>
+              </div>
+            )}
+
+            {onboardingStep === 4 && (
+              <div>
+                <h4 className="text-base font-bold text-black flex items-center gap-1">💳 Billing Quota & Simulator</h4>
+                <p className="text-xs text-[var(--muted)] leading-5 mt-2">
+                  Monitor your monthly conversions. Use the **Developer Sandbox Simulator** in the Billing tab to test Starlette webhook plan updates with one click!
+                </p>
+              </div>
+            )}
+
+            <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+              <button
+                onClick={handleSkipOnboarding}
+                className="text-xs text-[var(--muted)] hover:text-black font-semibold"
+              >
+                Skip Tutorial
+              </button>
+              
+              <button
+                onClick={handleNextOnboarding}
+                className="bg-[var(--accent)] text-white text-xs font-semibold px-4 py-2 hover:bg-[var(--accent-strong)]"
+              >
+                {onboardingStep < 4 ? "Next Step" : "Get Started"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Container */}
       <section className="mx-auto flex max-w-6xl flex-col gap-6">
         
         {/* Navigation Sidebar/Header */}
@@ -533,7 +1105,7 @@ export default function Home() {
             <p className="text-sm text-[var(--muted)] mt-1">{session.user.email}</p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setActiveTab("workspace")}
               className={`px-4 py-2 text-sm font-medium ${
@@ -555,6 +1127,26 @@ export default function Home() {
               Billing & Quotas
             </button>
             <button
+              onClick={() => setActiveTab("analytics")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "analytics"
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-white text-[var(--muted)] border border-[var(--border)] hover:bg-slate-50"
+              }`}
+            >
+              Analytics Dashboard
+            </button>
+            <button
+              onClick={() => setActiveTab("calendar")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "calendar"
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-white text-[var(--muted)] border border-[var(--border)] hover:bg-slate-50"
+              }`}
+            >
+              Content Calendar
+            </button>
+            <button
               onClick={() => setActiveTab("history")}
               className={`px-4 py-2 text-sm font-medium ${
                 activeTab === "history"
@@ -565,6 +1157,12 @@ export default function Home() {
               History ({history.length})
             </button>
             <button
+              onClick={() => setOnboardingStep(1)}
+              className="bg-slate-100 hover:bg-slate-200 border border-[var(--border)] text-black px-4 py-2 text-sm font-medium"
+            >
+              Tour Tour
+            </button>
+            <button
               onClick={handleLogout}
               className="border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm font-medium text-[var(--danger)] hover:bg-rose-100 transition-colors ml-4"
             >
@@ -573,14 +1171,12 @@ export default function Home() {
           </div>
         </header>
 
-        {/* Global Tab Enforcements */}
-        
         {/* VIEW 1: Repurposing Workspace */}
         {activeTab === "workspace" && (
           <section className="grid gap-5 lg:grid-cols-[0.95fr_1.35fr]">
             
             {/* Input Workspace */}
-            <div className="border border-[var(--border)] bg-[var(--panel)] p-5 flex flex-col justify-between min-h-[460px]">
+            <div className="border border-[var(--border)] bg-[var(--panel)] p-5 flex flex-col justify-between min-h-[460px] relative">
               <form onSubmit={handleSubmit}>
                 <div className="flex justify-between items-center mb-4">
                   <label className="text-sm font-medium" htmlFor="youtube-url">
@@ -595,13 +1191,23 @@ export default function Home() {
 
                 <input
                   id="youtube-url"
-                  className="min-h-11 w-full border border-[var(--border)] bg-white px-3 outline-none focus:border-[var(--accent)] text-sm"
+                  className={`min-h-11 w-full border px-3 outline-none text-sm transition-colors ${
+                    !isValidUrl
+                      ? "border-[var(--danger)] bg-rose-50/20 focus:border-[var(--danger)]"
+                      : "border-[var(--border)] bg-white focus:border-[var(--accent)]"
+                  }`}
                   onChange={(event) => setYoutubeUrl(event.target.value)}
                   placeholder="https://www.youtube.com/watch?v=..."
                   type="url"
                   value={youtubeUrl}
                   disabled={!hasRemainingQuota || isSubmitting}
                 />
+                
+                {!isValidUrl && (
+                  <p className="text-[11px] text-[var(--danger)] font-semibold mt-1.5">
+                    ⚠ Please paste a valid YouTube video or Shorts link structure
+                  </p>
+                )}
 
                 <label className="mt-5 block text-sm font-medium" htmlFor="transcript-text">
                   Transcript override (Optional)
@@ -653,66 +1259,108 @@ export default function Home() {
             </div>
 
             {/* Results / Status Workspace */}
-            <section className="border border-[var(--border)] bg-[var(--panel)] p-5 min-h-[460px]">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b border-[var(--border)] pb-4">
-                <div>
-                  <h2 className="text-lg font-semibold">Active conversions</h2>
-                  <p className="mt-1 text-sm text-[var(--muted)]">
-                    {job?.status_detail ?? "Awaiting a YouTube video URL..."}
-                  </p>
+            <div className="border border-[var(--border)] bg-[var(--panel)] p-5 min-h-[460px] flex flex-col justify-between">
+              <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between border-b border-[var(--border)] pb-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Active conversions</h2>
+                    <p className="mt-1 text-sm text-[var(--muted)]">
+                      {job?.status_detail ?? "Awaiting a YouTube video URL..."}
+                    </p>
+                  </div>
+                  <span className="w-fit border border-[var(--border)] px-3 py-1 text-xs font-semibold capitalize text-[var(--muted)] bg-slate-50">
+                    {job?.status ?? "idle"}
+                  </span>
                 </div>
-                <span className="w-fit border border-[var(--border)] px-3 py-1 text-xs font-semibold capitalize text-[var(--muted)] bg-slate-50">
-                  {job?.status ?? "idle"}
-                </span>
-              </div>
 
-              <div className="mt-5 h-2.5 w-full bg-[var(--track)] overflow-hidden rounded-full">
-                <div
-                  className="h-2.5 bg-[var(--accent)] transition-all duration-500 rounded-full"
-                  style={{ width: `${job?.progress ?? 0}%` }}
-                />
-              </div>
+                <div className="mt-5 h-2.5 w-full bg-[var(--track)] overflow-hidden rounded-full">
+                  <div
+                    className="h-2.5 bg-[var(--accent)] transition-all duration-500 rounded-full"
+                    style={{ width: `${job?.progress ?? 0}%` }}
+                  />
+                </div>
 
-              {job?.content ? (
-                <ContentResults
-                  content={job.content}
-                  copiedKey={copiedKey}
-                  onCopy={copyText}
-                  selectedView={selectedView}
-                  setSelectedView={setSelectedView}
-                />
-              ) : (
-                <div className="mt-8 grid gap-4 sm:grid-cols-3">
-                  {[
-                    { step: "Extracting Transcript", active: job?.progress ? job.progress >= 25 : false },
-                    { step: "Deconstructing Arc", active: job?.progress ? job.progress >= 55 : false },
-                    { step: "Platform Composition", active: job?.progress ? job.progress >= 85 : false },
-                  ].map((item, index) => (
-                    <div
-                      className={`border px-3 py-5 transition-colors ${
-                        item.active
-                          ? "border-[var(--accent)] bg-emerald-50 text-[var(--accent-strong)]"
-                          : job?.status === "failed"
-                          ? "border-red-200 bg-red-50 text-red-700"
-                          : "border-[var(--border)] text-[var(--muted)] bg-white"
-                      }`}
-                      key={index}
-                    >
-                      <p className="text-sm font-semibold">{item.step}</p>
-                      <p className="mt-2 text-xs">
-                        {job?.status === "failed"
-                          ? "Interrupted"
-                          : item.active
-                          ? "Complete"
-                          : job?.status === "processing" && job.progress < (index * 30 + 25)
-                          ? "In Progress"
-                          : "Pending"}
+                {/* Friendly Caption Failure Display */}
+                {job?.status === "failed" && (job.error?.toLowerCase().includes("transcript") || job.status_detail.includes("transcript")) ? (
+                  <div className="mt-6 border border-amber-300 bg-amber-50 p-5 text-amber-900 rounded">
+                    <h4 className="text-sm font-bold flex items-center gap-1.5">⚡ Video Captions Unavailable</h4>
+                    <p className="text-xs mt-2 leading-5">
+                      This YouTube video does not contain public auto-captions, preventing the pipeline from analyzing it.
+                    </p>
+                    <div className="mt-4 border-l-2 border-amber-500 pl-3">
+                      <p className="text-[11px] font-semibold">Easy Resolution:</p>
+                      <p className="text-[11px] mt-1">
+                        1. Copy the script or transcript text of the video.
+                        <br />
+                        2. Paste it in the **"Transcript override"** box to the left.
+                        <br />
+                        3. Re-click **"Generate Content Kit"** to process the conversion kit.
                       </p>
                     </div>
-                  ))}
+                  </div>
+                ) : null}
+
+                {job?.content && (
+                  <ContentResults
+                    content={job.content}
+                    contentIds={job.content_ids || null}
+                    copiedKey={copiedKey}
+                    onCopy={copyText}
+                    selectedView={selectedView}
+                    setSelectedView={setSelectedView}
+                    isRegenerating={isRegenerating}
+                    onRegenerate={handleRegeneratePlatform}
+                  />
+                )}
+
+                {/* Pendings list if no active conversions */}
+                {!job?.content && job?.status !== "failed" && (
+                  <div className="mt-8 grid gap-4 sm:grid-cols-3">
+                    {[
+                      { step: "Extracting Transcript", active: job?.progress ? job.progress >= 25 : false },
+                      { step: "Deconstructing Arc", active: job?.progress ? job.progress >= 55 : false },
+                      { step: "Platform Composition", active: job?.progress ? job.progress >= 85 : false },
+                    ].map((item, index) => (
+                      <div
+                        className={`border px-3 py-5 transition-colors ${
+                          item.active
+                            ? "border-[var(--accent)] bg-emerald-50 text-[var(--accent-strong)]"
+                            : "border-[var(--border)] text-[var(--muted)] bg-white"
+                        }`}
+                        key={index}
+                      >
+                        <p className="text-sm font-semibold">{item.step}</p>
+                        <p className="mt-2 text-xs">
+                          {item.active
+                            ? "Complete"
+                            : job?.status === "processing" && job.progress < (index * 30 + 25)
+                            ? "In Progress"
+                            : "Pending"}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Action Campaign exporters in Workspace Card footer */}
+              {job?.content && (
+                <div className="mt-6 pt-4 border-t border-[var(--border)] flex flex-wrap gap-3 items-center justify-end">
+                  <button
+                    onClick={handleCopyEntireKit}
+                    className="border border-slate-300 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-semibold shadow-sm transition-colors"
+                  >
+                    📋 Copy Entire Kit
+                  </button>
+                  <button
+                    onClick={handleDownloadMarkdown}
+                    className="bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] px-4 py-2 text-xs font-bold shadow-md transition-colors"
+                  >
+                    💾 Download Markdown (.md)
+                  </button>
                 </div>
               )}
-            </section>
+            </div>
           </section>
         )}
 
@@ -848,7 +1496,98 @@ export default function Home() {
                 >
                   Simulate Account Upgrade
                 </button>
+            </div>
+
+            {/* API ACCESS KEYS PANEL */}
+            <div className="mt-10 border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                <div>
+                  <h3 className="text-lg font-bold text-black flex items-center gap-1.5">
+                    🔑 Developer API Integration
+                  </h3>
+                  <p className="text-xs text-[var(--muted)]">
+                    Process YouTube video campaigns programmatically using our REST endpoints.
+                  </p>
+                </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 uppercase tracking-wider bg-emerald-50 text-[var(--accent)] border border-[var(--accent)]">
+                  Agency Tier Only
+                </span>
               </div>
+
+              {userProfile?.plan !== "agency" ? (
+                <div className="border border-dashed border-slate-200 p-8 text-center bg-slate-50/50">
+                  <p className="text-sm font-semibold text-slate-700">Developer API Keys are locked</p>
+                  <p className="text-xs text-[var(--muted)] mt-1.5 max-w-md mx-auto">
+                    API keys permit automated, header-authenticated programmatic conversions gated exclusively for high-scale users. Upgrade to the **Agency Tier** to generate credentials.
+                  </p>
+                  <button
+                    onClick={() => handleUpgrade("Agency")}
+                    className="mt-4 bg-[var(--accent)] text-white text-xs font-semibold px-4 py-2 hover:bg-[var(--accent-strong)] shadow"
+                  >
+                    Upgrade to Agency Tier
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <form onSubmit={handleCreateApiKey} className="flex gap-3 mb-6">
+                    <input
+                      type="text"
+                      placeholder="e.g. Production Webhook Integration"
+                      value={apiKeyName}
+                      onChange={(e) => setApiKeyName(e.target.value)}
+                      className="flex-1 bg-white border border-[var(--border)] text-xs px-3 py-2 outline-none focus:border-[var(--accent)]"
+                      required
+                    />
+                    <button
+                      type="submit"
+                      disabled={creatingKey || !apiKeyName.trim()}
+                      className="bg-[var(--accent)] text-white text-xs font-bold px-4 py-2 hover:bg-[var(--accent-strong)] disabled:bg-slate-200 disabled:text-slate-400 shadow"
+                    >
+                      {creatingKey ? "Creating..." : "Generate API Key"}
+                    </button>
+                  </form>
+
+                  {keysLoading ? (
+                    <div className="flex justify-center items-center py-6">
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                    </div>
+                  ) : apiKeys.length === 0 ? (
+                    <p className="text-xs text-[var(--muted)] italic text-center py-4 bg-slate-50">No API keys created yet. Generate one above!</p>
+                  ) : (
+                    <div className="border border-slate-100 overflow-hidden">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <th className="p-3 font-semibold text-slate-700">Key Name</th>
+                            <th className="p-3 font-semibold text-slate-700">Token Credential</th>
+                            <th className="p-3 font-semibold text-slate-700">Created At</th>
+                            <th className="p-3 font-semibold text-slate-700 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {apiKeys.map((key) => (
+                            <tr key={key.id} className="hover:bg-slate-50/50">
+                              <td className="p-3 font-semibold text-black">{key.name}</td>
+                              <td className="p-3 font-mono text-slate-600 bg-slate-50 select-all">{key.key_value}</td>
+                              <td className="p-3 text-slate-500">
+                                {new Date(key.created_at).toLocaleDateString()}
+                              </td>
+                              <td className="p-3 text-right">
+                                <button
+                                  onClick={() => handleRevokeApiKey(key.id)}
+                                  className="text-[10px] font-bold text-[var(--danger)] hover:underline"
+                                >
+                                  Revoke Key
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -942,6 +1681,225 @@ export default function Home() {
             )}
           </section>
         )}
+
+        {/* VIEW 4: Analytics Dashboard */}
+        {activeTab === "analytics" && (
+          <section className="border border-[var(--border)] bg-[var(--panel)] p-6 min-h-[460px]">
+            <div className="border-b border-[var(--border)] pb-4 mb-6">
+              <h2 className="text-2xl font-bold tracking-tight">Campaign Telemetry & Analytics</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Inspect aggregated platform usage, clipboard telemetry, and active publication volumes.
+              </p>
+            </div>
+
+            {analyticsLoading ? (
+              <div className="flex justify-center items-center py-20">
+                <div className="h-6 w-6 animate-spin rounded-full border-3 border-[var(--accent)] border-t-transparent" />
+              </div>
+            ) : !analyticsData ? (
+              <p className="text-xs text-[var(--muted)] italic text-center py-10">No analytics data available yet.</p>
+            ) : (
+              <div className="grid gap-6">
+                {/* Statistics Cards */}
+                <div className="grid gap-5 md:grid-cols-2">
+                  <div className="border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Total Campaigns Converted</p>
+                    <p className="mt-3 text-4xl font-extrabold text-black">{analyticsData.total_runs}</p>
+                    <p className="mt-2 text-xs text-[var(--muted)]">Calculated from total processed long-form video jobs</p>
+                  </div>
+                  <div className="border border-slate-200 bg-white p-5 shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)]">Platform Copy Distribution</p>
+                    <p className="mt-3 text-4xl font-extrabold text-[var(--accent)]">
+                      {Object.values(analyticsData.platform_distribution).reduce((a: any, b: any) => a + b, 0) as number} copies
+                    </p>
+                    <p className="mt-2 text-xs text-[var(--muted)]">Sum of clipboard exports logged across social channels</p>
+                  </div>
+                </div>
+
+                {/* Progress bars representing platforms */}
+                <div className="border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-bold text-black mb-4">Channels Share Metrics</h3>
+                  <div className="grid gap-4">
+                    {["twitter", "linkedin", "newsletter", "blog", "shorts", "carousel"].map((platform) => {
+                      const count = analyticsData.platform_distribution[platform] || 0;
+                      const total = Object.values(analyticsData.platform_distribution).reduce((a: any, b: any) => a + b, 0) as number || 1;
+                      const percentage = Math.round((count / total) * 100);
+                      
+                      const colors: Record<string, string> = {
+                        twitter: "bg-slate-900",
+                        linkedin: "bg-blue-600",
+                        newsletter: "bg-purple-600",
+                        blog: "bg-amber-500",
+                        shorts: "bg-rose-500",
+                        carousel: "bg-pink-500"
+                      };
+
+                      return (
+                        <div key={platform} className="grid grid-cols-[80px_1fr_40px] items-center gap-3">
+                          <span className="text-xs font-bold uppercase text-slate-700">{platform}</span>
+                          <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className={`h-3 rounded-full ${colors[platform] || "bg-[var(--accent)]"} transition-all duration-500`}
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-right text-xs font-semibold text-slate-800">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Recent activity timeline */}
+                <div className="border border-slate-200 bg-white p-5 shadow-sm">
+                  <h3 className="text-sm font-bold text-black mb-4">Audited Event Telemetry</h3>
+                  {analyticsData.recent_activity.length === 0 ? (
+                    <p className="text-xs text-[var(--muted)] italic">No recent copying telemetry captured yet.</p>
+                  ) : (
+                    <div className="divide-y divide-slate-100">
+                      {analyticsData.recent_activity.map((log: any) => (
+                        <div key={log.id} className="py-2.5 flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className={`h-2 w-2 rounded-full ${log.action.includes("export") ? "bg-purple-400" : "bg-emerald-400"}`} />
+                            <span className="font-semibold text-slate-800">
+                              {log.action === "content_copied" ? "Copied" : "Exported"} <strong className="uppercase">{log.platform}</strong> campaign outline
+                            </span>
+                          </div>
+                          <span className="text-slate-400 font-medium">
+                            {new Date(log.created_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* VIEW 5: Content Calendar */}
+        {activeTab === "calendar" && (
+          <section className="border border-[var(--border)] bg-[var(--panel)] p-6 min-h-[460px]">
+            <div className="border-b border-[var(--border)] pb-4 mb-6">
+              <h2 className="text-2xl font-bold tracking-tight">Creator Content Calendar</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Schedule, formats inspect, and schedule publication outlines dynamically for the active weekly slot.
+              </p>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-7 lg:grid-cols-4 md:grid-cols-2 sm:grid-cols-1">
+              {calendarWeeks.map((day) => {
+                // Find completed campaigns matching this day
+                const campaignsOnDay = history.filter((item) => {
+                  if (item.status !== "completed") return false;
+                  const itemDate = new Date(item.created_at).toLocaleDateString();
+                  return itemDate === day.dateString;
+                });
+
+                return (
+                  <div key={day.name} className="border border-slate-200 bg-white p-4 min-h-[200px] flex flex-col justify-between hover:shadow-xs transition-shadow">
+                    <div>
+                      <div className="flex justify-between items-baseline border-b border-slate-100 pb-2 mb-3">
+                        <span className="text-xs font-extrabold text-black uppercase">{day.name}</span>
+                        <span className="text-[10px] text-slate-400 font-bold">{day.formattedDate}</span>
+                      </div>
+
+                      {campaignsOnDay.length === 0 ? (
+                        <p className="text-[10px] text-slate-400 italic">No campaigns scheduled</p>
+                      ) : (
+                        <div className="grid gap-2">
+                          {campaignsOnDay.map((camp) => (
+                            <div key={camp.job_id} className="border border-emerald-100 bg-emerald-50/50 p-2 text-[10px] rounded hover:border-[var(--accent)] transition-all">
+                              <p className="font-bold text-slate-850 truncate mb-1.5" title={camp.youtube_url}>
+                                🔗 {camp.youtube_url.split("v=")[1] || "Video"}
+                              </p>
+                              
+                              <div className="grid gap-1">
+                                {camp.content && Object.keys(camp.content).map((platform) => (
+                                  <button
+                                    key={platform}
+                                    onClick={() => {
+                                      setSelectedCalendarCampaign(camp);
+                                      setSelectedCalendarPlatform(platform);
+                                    }}
+                                    className="w-full text-left bg-white border border-slate-200 hover:border-[var(--accent)] p-1 text-[9px] font-semibold text-slate-700 truncate rounded flex items-center justify-between"
+                                  >
+                                    <span className="uppercase">{platform}</span>
+                                    <span className="text-[8px] text-[var(--accent)]">view →</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Modal for viewing calendar content card */}
+            {selectedCalendarCampaign && selectedCalendarPlatform && (
+              <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white border border-slate-200 p-6 max-w-2xl w-full shadow-2xl relative flex flex-col justify-between max-h-[85vh]">
+                  <div>
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Scheduled Campaign Preview</span>
+                        <h4 className="text-base font-extrabold text-black uppercase mt-1">
+                          {selectedCalendarPlatform} Copy Outlines
+                        </h4>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedCalendarCampaign(null);
+                          setSelectedCalendarPlatform(null);
+                        }}
+                        className="text-lg font-bold text-slate-400 hover:text-black"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div className="overflow-y-auto max-h-[50vh] pr-2">
+                      <p className="text-[10px] text-slate-550 font-mono mb-4 truncate">
+                        Source Video: {selectedCalendarCampaign.youtube_url}
+                      </p>
+                      
+                      <div className="bg-slate-50 p-4 border border-slate-200 text-xs text-slate-700 whitespace-pre-wrap leading-relaxed select-all">
+                        {renderCalendarPlatformCopy(selectedCalendarCampaign.content, selectedCalendarPlatform)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end gap-3">
+                    <button
+                      onClick={() => {
+                        const copyTxt = renderCalendarPlatformCopy(selectedCalendarCampaign.content, selectedCalendarPlatform);
+                        navigator.clipboard.writeText(copyTxt);
+                        setToastMessage(`${selectedCalendarPlatform.toUpperCase()} copy copied to clipboard!`);
+                      }}
+                      className="bg-[var(--accent)] text-white hover:bg-[var(--accent-strong)] px-4 py-2 text-xs font-bold shadow-md transition-colors"
+                    >
+                      📋 Copy to Clipboard
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedCalendarCampaign(null);
+                        setSelectedCalendarPlatform(null);
+                      }}
+                      className="border border-slate-300 hover:bg-slate-50 px-4 py-2 text-xs font-semibold shadow-sm transition-colors text-black"
+                    >
+                      Close Preview
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
       </section>
     </main>
   );
@@ -949,17 +1907,54 @@ export default function Home() {
 
 function ContentResults({
   content,
+  contentIds,
   copiedKey,
   onCopy,
   selectedView,
   setSelectedView,
+  isRegenerating,
+  onRegenerate,
 }: {
   content: ContentKit;
+  contentIds: Record<string, string> | null;
   copiedKey: string | null;
-  onCopy: (key: string, text: string) => Promise<void>;
+  onCopy: (key: string, text: string, platform?: string, contentId?: string) => Promise<void>;
   selectedView: ContentView;
   setSelectedView: (view: ContentView) => void;
+  isRegenerating: boolean;
+  onRegenerate: () => void;
 }) {
+  const [variations, setVariations] = useState<string[]>([]);
+  const [loadingVariations, setLoadingVariations] = useState(false);
+  const [showVariations, setShowVariations] = useState(false);
+  const [variationsError, setVariationsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setVariations([]);
+    setShowVariations(false);
+    setVariationsError(null);
+  }, [selectedView]);
+
+  async function fetchVariations() {
+    const contentId = contentIds?.[selectedView];
+    if (!contentId) {
+      setVariationsError("No content piece ID found for variations generation.");
+      return;
+    }
+    setLoadingVariations(true);
+    setVariationsError(null);
+    try {
+      const res = await apiFetch(`/api/content/${contentId}/variations`, {
+        method: "POST"
+      });
+      setVariations(res.variations || []);
+    } catch (err) {
+      setVariationsError("Could not retrieve hook variations.");
+    } finally {
+      setLoadingVariations(false);
+    }
+  }
+
   return (
     <div className="mt-6">
       <div className="grid grid-cols-2 border border-[var(--border)] md:grid-cols-3 xl:grid-cols-6">
@@ -975,24 +1970,96 @@ function ContentResults({
         ))}
       </div>
 
-      {selectedView === "twitter" && (
-        <TwitterResults content={content} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
-      {selectedView === "linkedin" && (
-        <LinkedInResults content={content} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
-      {selectedView === "newsletter" && (
-        <NewsletterResults content={content.newsletter} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
-      {selectedView === "blog" && (
-        <BlogResults content={content.blog} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
-      {selectedView === "shorts" && (
-        <ShortsResults content={content.shorts} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
-      {selectedView === "carousel" && (
-        <CarouselResults content={content.carousel} copiedKey={copiedKey} onCopy={onCopy} />
-      )}
+      <div className="relative min-h-[100px]">
+        {/* Spin loader overlay inside active Platform Result tab during regeneration */}
+        {isRegenerating && (
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center gap-2">
+            <div className="h-6 w-6 animate-spin rounded-full border-3 border-[var(--accent)] border-t-transparent" />
+            <p className="text-[10px] font-bold uppercase text-[var(--accent)] tracking-wider">Regenerating tab copy...</p>
+          </div>
+        )}
+
+        {selectedView === "twitter" && (
+          <TwitterResults content={content} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "twitter", contentIds?.["twitter"])} />
+        )}
+        {selectedView === "linkedin" && (
+          <LinkedInResults content={content} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "linkedin", contentIds?.["linkedin"])} />
+        )}
+        {selectedView === "newsletter" && (
+          <NewsletterResults content={content.newsletter} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "newsletter", contentIds?.["newsletter"])} />
+        )}
+        {selectedView === "blog" && (
+          <BlogResults content={content.blog} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "blog", contentIds?.["blog"])} />
+        )}
+        {selectedView === "shorts" && (
+          <ShortsResults content={content.shorts} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "shorts", contentIds?.["shorts"])} />
+        )}
+        {selectedView === "carousel" && (
+          <CarouselResults content={content.carousel} copiedKey={copiedKey} onCopy={(key, text) => onCopy(key, text, "carousel", contentIds?.["carousel"])} />
+        )}
+      </div>
+
+      {/* A/B variations generator drawer */}
+      <div className="mt-6 border border-slate-200 bg-slate-50/50 p-4">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            🎯 Platform Hook & Headline Variations (A/B Test)
+          </h4>
+          <button
+            onClick={() => {
+              const nextShow = !showVariations;
+              setShowVariations(nextShow);
+              if (nextShow && variations.length === 0) {
+                fetchVariations();
+              }
+            }}
+            className="text-xs font-bold text-[var(--accent)] hover:text-[var(--accent-strong)]"
+          >
+            {showVariations ? "Hide Variations" : "Reveal A/B Hooks"}
+          </button>
+        </div>
+
+        {showVariations && (
+          <div className="mt-4 pt-4 border-t border-slate-200">
+            {loadingVariations ? (
+              <div className="flex items-center justify-center py-4">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent mr-2" />
+                <span className="text-xs text-[var(--muted)]">Generating alternative angles...</span>
+              </div>
+            ) : variationsError ? (
+              <p className="text-xs text-[var(--danger)]">{variationsError}</p>
+            ) : (
+              <div className="grid gap-3">
+                {variations.map((v, i) => (
+                  <div key={i} className="bg-white border border-slate-100 p-3 shadow-xs relative group">
+                    <span className="absolute top-2.5 right-3 text-[10px] font-bold text-slate-400 uppercase">
+                      Angle {String.fromCharCode(65 + i)}
+                    </span>
+                    <p className="text-xs text-slate-700 leading-relaxed pr-16">{v}</p>
+                    <button
+                      onClick={() => onCopy(`var-${selectedView}-${i}`, v, selectedView, contentIds?.[selectedView])}
+                      className="mt-2.5 text-[10px] font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] animate-fade-in"
+                    >
+                      {copiedKey === `var-${selectedView}-${i}` ? "✓ Copied!" : "📋 Copy Angle"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Regeneration action button directly under active view results card */}
+      <div className="mt-4 flex justify-end">
+        <button
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          className="text-xs font-semibold text-[var(--accent)] hover:text-[var(--accent-strong)] hover:underline flex items-center gap-1 bg-transparent border-0 outline-none"
+        >
+          🔄 Regenerate {selectedView.toUpperCase()} Copy
+        </button>
+      </div>
     </div>
   );
 }
@@ -1227,7 +2294,7 @@ function CopyButton({ copied, onClick }: { copied: boolean; onClick: () => void 
       onClick={onClick}
       type="button"
     >
-      {copied ? "Copied Copy" : "Copy to Clipboard"}
+      {copied ? "Copied" : "Copy to Clipboard"}
     </button>
   );
 }

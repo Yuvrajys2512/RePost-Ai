@@ -204,8 +204,10 @@ from app.models.video import VideoJobModel, GeneratedContentModel
 
 def map_model_to_response(job_model: VideoJobModel) -> VideoJobResponse:
     content_kit = None
+    content_ids = None
     if job_model.generated_content:
         content_dict = {row.platform: row.payload for row in job_model.generated_content}
+        content_ids = {row.platform: row.id for row in job_model.generated_content}
         try:
             content_kit = GeneratedContentKit.model_validate(content_dict)
         except Exception:
@@ -220,8 +222,10 @@ def map_model_to_response(job_model: VideoJobModel) -> VideoJobResponse:
         updated_at=job_model.updated_at,
         youtube_url=job_model.youtube_url,
         content=content_kit,
+        content_ids=content_ids,
         error=job_model.error,
     )
+
 
 
 async def process_video_job_db(job_id: str) -> None:

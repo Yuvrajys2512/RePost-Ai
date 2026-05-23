@@ -37,5 +37,7 @@ class VideoJobResponse(BaseModel):
     updated_at: datetime
     youtube_url: str
     content: GeneratedContentKit | None = None
+    content_ids: dict[str, str] | None = None
     error: str | None = None
+
 

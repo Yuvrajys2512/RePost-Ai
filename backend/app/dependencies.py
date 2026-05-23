@@ -33,8 +33,31 @@ async def get_or_create_user(db: AsyncSession, user_id: str, email: str | None =
 
 async def get_current_user(
     authorization: str | None = Header(None),
+    x_api_key: str | None = Header(None),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserModel:
+    # 1. First, check if X-API-Key is provided in headers
+    if x_api_key:
+        from app.models.user import ApiKeyModel
+        result = await db.execute(
+            select(UserModel)
+            .join(ApiKeyModel, UserModel.id == ApiKeyModel.user_id)
+            .where(ApiKeyModel.key_value == x_api_key)
+        )
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid API key",
+            )
+        if user.plan != "agency":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="API access is restricted to the Agency tier. Please upgrade your plan.",
+            )
+        return user
+
+    # 2. Revert to standard Authorization Bearer Token
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -72,3 +95,4 @@ async def get_current_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Authentication token verification failed: {str(exc)}",
         )
+

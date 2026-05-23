@@ -180,3 +180,107 @@ async def billing_webhook(
         await db.commit()
 
     return {"status": "success", "event": event_name, "user_id": user_id, "active_plan": user.plan}
+
+
+class CreateApiKeyRequest(BaseModel):
+    name: str
+
+
+@router.get("/keys")
+async def list_api_keys(
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> list[dict]:
+    # Gated: Only Agency plan can use this (or we let anyone view, but they can't generate)
+    # The requirement specifies: Developer API Keys provisioning gated for the Agency tier.
+    # Let's enforce that both listing and generating requires Agency plan
+    if current_user.plan != "agency":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API Key management is restricted to the Agency tier. Please upgrade.",
+        )
+
+    from sqlalchemy import select
+    from app.models.user import ApiKeyModel
+    result = await db.execute(
+        select(ApiKeyModel)
+        .where(ApiKeyModel.user_id == current_user.id)
+        .order_by(ApiKeyModel.created_at.desc())
+    )
+    keys = result.scalars().all()
+    return [
+        {
+            "id": k.id,
+            "name": k.name,
+            "key_value": k.key_value,
+            "created_at": k.created_at,
+        }
+        for k in keys
+    ]
+
+
+@router.post("/keys")
+async def create_api_key(
+    payload: CreateApiKeyRequest,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    if current_user.plan != "agency":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Developer API Keys are only available on the Agency tier. Please upgrade your plan.",
+        )
+
+    import secrets
+    from app.models.user import ApiKeyModel
+
+    key_value = f"rp_live_{secrets.token_hex(24)}"
+    new_key = ApiKeyModel(
+        user_id=current_user.id,
+        key_value=key_value,
+        name=payload.name,
+    )
+    db.add(new_key)
+    await db.commit()
+    await db.refresh(new_key)
+
+    return {
+        "status": "success",
+        "key": {
+            "id": new_key.id,
+            "name": new_key.name,
+            "key_value": new_key.key_value,
+            "created_at": new_key.created_at,
+        }
+    }
+
+
+@router.delete("/keys/{key_id}")
+async def revoke_api_key(
+    key_id: str,
+    current_user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    if current_user.plan != "agency":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="API Key management is restricted to the Agency tier.",
+        )
+
+    from sqlalchemy import select
+    from app.models.user import ApiKeyModel
+    result = await db.execute(
+        select(ApiKeyModel)
+        .where(ApiKeyModel.id == key_id, ApiKeyModel.user_id == current_user.id)
+    )
+    api_key = result.scalar_one_or_none()
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="API Key not found or does not belong to you",
+        )
+    await db.delete(api_key)
+    await db.commit()
+
+    return {"status": "success", "message": "API key revoked successfully"}
+

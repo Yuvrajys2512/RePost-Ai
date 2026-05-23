@@ -111,40 +111,41 @@
 
 ## Phase 5 - Polish, Landing Page, and Launch Prep
 
-- [ ] Design and build landing page
+- [x] Design and build landing page
 - [ ] Add demo video or GIF section
-- [ ] Add pricing section
-- [ ] Add social proof/testimonial section
-- [ ] Polish dashboard UI and empty states
-- [ ] Polish loading and error states
-- [ ] Build onboarding flow
-- [ ] Build video history page
-- [ ] Add regenerate content flow
-- [ ] Add Markdown export
-- [ ] Add copy-all export
+- [x] Add pricing section
+- [x] Add social proof/testimonial section
+- [x] Polish dashboard UI and empty states
+- [x] Polish loading and error states
+- [x] Build onboarding flow
+- [x] Build video history page
+- [x] Add regenerate content flow
+- [x] Add Markdown export
+- [x] Add copy-all export
 - [ ] Add Notion export research or integration
-- [ ] Add friendly handling for bad URLs
-- [ ] Add friendly handling for transcript failures
-- [ ] Add rate-limit error UI
+- [x] Add friendly handling for bad URLs
+- [x] Add friendly handling for transcript failures
+- [x] Add rate-limit error UI
 - [ ] Set up Sentry
 - [ ] Add basic analytics
 - [ ] Set up Resend transactional emails
-- [ ] Draft launch copy for Reddit
-- [ ] Draft launch copy for Twitter/X
-- [ ] Draft launch copy for Product Hunt
+- [x] Draft launch copy for Reddit
+- [x] Draft launch copy for Twitter/X
+- [x] Draft launch copy for Product Hunt
 - [ ] Deploy frontend to Vercel
 - [ ] Deploy backend to Railway/Fly.io
 - [ ] Connect production domain
 
 ## Phase 6 - Growth Features
 
-- [ ] Build content calendar view
+- [x] Build content calendar view
 - [ ] Add Buffer scheduling integration
 - [ ] Add Typefully scheduling integration
 - [ ] Add batch processing for channel URLs
-- [ ] Add A/B headline generation
-- [ ] Track copy/export analytics
+- [x] Add A/B headline generation
+- [x] Track copy/export analytics
 - [ ] Add team invitations
 - [ ] Add shared voice profiles
-- [ ] Add Agency plan API access
-- [ ] Build analytics dashboard
+- [x] Add Agency plan API access
+- [x] Build analytics dashboard
+
