@@ -14,6 +14,7 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://repost:repost@localhost:5432/repost_ai"
     redis_url: str = "redis://localhost:6379/0"
+    use_redis_queue: bool = False
 
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
@@ -39,4 +40,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

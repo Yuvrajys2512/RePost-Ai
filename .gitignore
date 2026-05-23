@@ -18,4 +18,4 @@ coverage/
 
 *.log
 *.sqlite3
-
+backend/.data/

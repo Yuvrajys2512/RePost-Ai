@@ -10,6 +10,12 @@ from app.schemas.generation import (
     TwitterTweet,
 )
 from app.schemas.transcript import Transcript, TranscriptSegment
+from app.schemas.video import (
+    ProcessVideoRequest,
+    ProcessVideoResponse,
+    VideoJobResponse,
+    VideoJobStatus,
+)
 
 __all__ = [
     "ContentAnalysis",
@@ -18,9 +24,13 @@ __all__ = [
     "LinkedInContent",
     "LinkedInPost",
     "Platform",
+    "ProcessVideoRequest",
+    "ProcessVideoResponse",
     "StoryBeat",
     "Transcript",
     "TranscriptSegment",
     "TwitterContent",
     "TwitterTweet",
+    "VideoJobResponse",
+    "VideoJobStatus",
 ]

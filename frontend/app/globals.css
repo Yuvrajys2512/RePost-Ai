@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f7f2;
-  --foreground: #171717;
-  --muted: #66665e;
+  --background: #f4f6f8;
+  --foreground: #17191c;
+  --muted: #626a73;
   --panel: #ffffff;
-  --border: #d9d7ce;
+  --border: #cfd6dd;
+  --track: #e3e8ed;
   --accent: #0f766e;
-  --accent-strong: #115e59;
+  --accent-strong: #0b5f59;
+  --disabled: #94a3b8;
+  --danger: #9f1239;
+  --danger-soft: #fff1f2;
 }
 
 * {
@@ -26,4 +30,3 @@ input,
 textarea {
   font: inherit;
 }
-

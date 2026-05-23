@@ -41,6 +41,31 @@ Expected checks:
 curl http://localhost:8000/health
 ```
 
+Phase 2 local app:
+
+```powershell
+cd backend
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+cd ../frontend
+npm run dev
+```
+
+Phase 2 database migration:
+
+```powershell
+docker compose up -d postgres redis
+psql "postgresql://repost:repost@localhost:5432/repost_ai" -f backend/app/db/migrations/0001_phase2_video_jobs.sql
+```
+
+Phase 2 worker queue:
+
+```powershell
+# Set USE_REDIS_QUEUE=true in backend/.env when Redis is running.
+cd backend
+arq app.worker.WorkerSettings
+```
+
 Phase 1 CLI contracts:
 
 ```powershell
