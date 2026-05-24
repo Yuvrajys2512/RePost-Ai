@@ -1,8 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 
 from app.api.routes import router as api_router
 from app.config import get_settings
@@ -11,9 +14,27 @@ from app.db.session import init_db
 logger = logging.getLogger(__name__)
 
 
+def _init_sentry(dsn: str, environment: str) -> None:
+    sentry_sdk.init(
+        dsn=dsn,
+        environment=environment,
+        integrations=[
+            FastApiIntegration(),
+            SqlalchemyIntegration(),
+        ],
+        traces_sample_rate=0.2,
+        send_default_pii=False,
+    )
+    logger.info("Sentry initialized (environment=%s)", environment)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+
+    if settings.sentry_dsn:
+        _init_sentry(settings.sentry_dsn, settings.environment)
+
     if settings.anthropic_api_key:
         logger.info("AI provider: Claude (Anthropic)")
     elif settings.groq_api_key:

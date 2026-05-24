@@ -111,7 +111,7 @@ export default function Home() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   // App workspace tabs
-  const [activeTab, setActiveTab] = useState<"workspace" | "billing" | "history" | "analytics" | "calendar">("workspace");
+  const [activeTab, setActiveTab] = useState<"workspace" | "billing" | "history" | "analytics" | "calendar" | "voice">("workspace");
 
   // Analytics states
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -126,6 +126,15 @@ export default function Home() {
   // Calendar states
   const [selectedCalendarCampaign, setSelectedCalendarCampaign] = useState<any>(null);
   const [selectedCalendarPlatform, setSelectedCalendarPlatform] = useState<string | null>(null);
+
+  // Voice profile states
+  const [voiceProfiles, setVoiceProfiles] = useState<any[]>([]);
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceCreating, setVoiceCreating] = useState(false);
+  const [voiceName, setVoiceName] = useState("");
+  const [voiceSamples, setVoiceSamples] = useState("");
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [voiceSuccess, setVoiceSuccess] = useState<string | null>(null);
 
   // Video processing State
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -215,6 +224,69 @@ export default function Home() {
       fetchApiKeys();
     }
   }, [activeTab, userProfile?.plan]);
+
+  // Fetch voice profiles when tab is selected
+  async function fetchVoiceProfiles() {
+    setVoiceLoading(true);
+    try {
+      const data = await apiFetch("/api/voice/profiles");
+      setVoiceProfiles(data.profiles || []);
+    } catch (err) {
+      console.error("Could not fetch voice profiles", err);
+    } finally {
+      setVoiceLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "voice") {
+      fetchVoiceProfiles();
+    }
+  }, [activeTab]);
+
+  async function handleCreateVoiceProfile(e: FormEvent) {
+    e.preventDefault();
+    if (!voiceName.trim() || !voiceSamples.trim() || voiceCreating) return;
+    setVoiceCreating(true);
+    setVoiceError(null);
+    setVoiceSuccess(null);
+
+    const samples = voiceSamples
+      .split("\n---\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (samples.length === 0) {
+      setVoiceError("Add at least one writing sample.");
+      setVoiceCreating(false);
+      return;
+    }
+
+    try {
+      await apiFetch("/api/voice/profiles", {
+        method: "POST",
+        json: { name: voiceName.trim(), samples },
+      });
+      setVoiceSuccess(`Voice profile "${voiceName.trim()}" created.`);
+      setVoiceName("");
+      setVoiceSamples("");
+      fetchVoiceProfiles();
+    } catch (err) {
+      setVoiceError(err instanceof Error ? err.message : "Could not create voice profile.");
+    } finally {
+      setVoiceCreating(false);
+    }
+  }
+
+  async function handleDeleteVoiceProfile(id: string, name: string) {
+    if (!confirm(`Delete voice profile "${name}"? This cannot be undone.`)) return;
+    try {
+      await apiFetch(`/api/voice/profiles/${id}`, { method: "DELETE" });
+      setVoiceProfiles((prev) => prev.filter((p) => p.id !== id));
+    } catch (err) {
+      console.error("Could not delete voice profile", err);
+    }
+  }
 
   // Calendar weeks builder helper
   const calendarWeeks = useMemo(() => {
@@ -1157,6 +1229,16 @@ export default function Home() {
               History ({history.length})
             </button>
             <button
+              onClick={() => setActiveTab("voice")}
+              className={`px-4 py-2 text-sm font-medium ${
+                activeTab === "voice"
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-white text-[var(--muted)] border border-[var(--border)] hover:bg-slate-50"
+              }`}
+            >
+              Voice Profiles
+            </button>
+            <button
               onClick={() => setOnboardingStep(1)}
               className="bg-slate-100 hover:bg-slate-200 border border-[var(--border)] text-black px-4 py-2 text-sm font-medium"
             >
@@ -1496,6 +1578,7 @@ export default function Home() {
                 >
                   Simulate Account Upgrade
                 </button>
+            </div>
             </div>
 
             {/* API ACCESS KEYS PANEL */}
@@ -1898,6 +1981,137 @@ export default function Home() {
                 </div>
               </div>
             )}
+          </section>
+        )}
+
+        {/* VIEW 6: Voice Profiles */}
+        {activeTab === "voice" && (
+          <section className="border border-[var(--border)] bg-[var(--panel)] p-6 min-h-[460px]">
+            <div className="border-b border-[var(--border)] pb-4 mb-6">
+              <h2 className="text-2xl font-bold tracking-tight">Voice Profiles</h2>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Paste samples of your writing and RePost AI will match your tone, vocabulary, and
+                sentence rhythm in every generated post.
+              </p>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-2">
+              {/* Create form */}
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)] mb-4">
+                  Create New Profile
+                </h3>
+                <form onSubmit={handleCreateVoiceProfile} className="flex flex-col gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Profile name</label>
+                    <input
+                      type="text"
+                      value={voiceName}
+                      onChange={(e) => setVoiceName(e.target.value)}
+                      placeholder="e.g. My Twitter Voice"
+                      maxLength={100}
+                      className="w-full border border-[var(--border)] bg-white px-3 py-2 text-sm focus:outline-none focus:border-[var(--accent)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">
+                      Writing samples
+                      <span className="ml-2 font-normal text-[var(--muted)]">
+                        — paste 3–10 of your real posts or tweets, separated by{" "}
+                        <code className="bg-slate-100 px-1 text-[11px]">---</code> on its own line
+                      </span>
+                    </label>
+                    <textarea
+                      value={voiceSamples}
+                      onChange={(e) => setVoiceSamples(e.target.value)}
+                      placeholder={"Here's a thread I wrote about productivity...\n---\nAnother post I'm proud of...\n---\nA LinkedIn post that performed well..."}
+                      rows={10}
+                      className="w-full border border-[var(--border)] bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:border-[var(--accent)] resize-y"
+                    />
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">
+                      More samples = better voice matching. Aim for at least 5.
+                    </p>
+                  </div>
+
+                  {voiceError && (
+                    <p className="text-sm text-[var(--danger)]">{voiceError}</p>
+                  )}
+                  {voiceSuccess && (
+                    <p className="text-sm text-emerald-600 font-medium">{voiceSuccess}</p>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={voiceCreating || !voiceName.trim() || !voiceSamples.trim()}
+                    className="bg-[var(--accent)] text-white px-5 py-2 text-sm font-semibold hover:bg-[var(--accent-strong)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-start"
+                  >
+                    {voiceCreating ? "Extracting style…" : "Create Voice Profile"}
+                  </button>
+                </form>
+              </div>
+
+              {/* Existing profiles */}
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-[var(--muted)] mb-4">
+                  Saved Profiles ({voiceProfiles.length})
+                </h3>
+
+                {voiceLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                    Loading…
+                  </div>
+                ) : voiceProfiles.length === 0 ? (
+                  <div className="border border-dashed border-[var(--border)] p-6 text-center">
+                    <p className="text-sm text-[var(--muted)]">No voice profiles yet.</p>
+                    <p className="mt-1 text-xs text-[var(--muted)]">
+                      Create one from your writing samples to get personalised content.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {voiceProfiles.map((profile) => (
+                      <div
+                        key={profile.id}
+                        className="border border-[var(--border)] bg-white p-4"
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <span className="font-semibold text-sm">{profile.name}</span>
+                          <button
+                            onClick={() => handleDeleteVoiceProfile(profile.id, profile.name)}
+                            className="text-[10px] text-[var(--danger)] hover:underline shrink-0"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                          <dt className="text-[var(--muted)]">Tone</dt>
+                          <dd className="font-medium">{profile.extracted_style?.tone || "—"}</dd>
+                          <dt className="text-[var(--muted)]">Sentences</dt>
+                          <dd className="font-medium">{profile.extracted_style?.sentence_length || "—"}</dd>
+                          <dt className="text-[var(--muted)]">Emoji usage</dt>
+                          <dd className="font-medium">{profile.extracted_style?.emoji_usage || "—"}</dd>
+                          <dt className="text-[var(--muted)]">Samples used</dt>
+                          <dd className="font-medium">{profile.extracted_style?.sample_count ?? "—"}</dd>
+                        </dl>
+                        {profile.extracted_style?.vocabulary?.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-1">
+                            {profile.extracted_style.vocabulary.slice(0, 8).map((word: string) => (
+                              <span
+                                key={word}
+                                className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] px-2 py-0.5 font-medium"
+                              >
+                                {word}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
         )}
       </section>

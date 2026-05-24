@@ -169,15 +169,25 @@ async def billing_webhook(
             user.plan = "agency"
         else:
             user.plan = "pro"
-            
+
         user.videos_used_this_month = 0
         user.billing_cycle_start = datetime.now(UTC)
         await db.commit()
+
+        from app.services.email import send_payment_confirmation
+        send_payment_confirmation(user.email, user.plan)
 
     elif event_name == "subscription_cancelled":
         # Cancelled subscriptions revert to free tier at end of billing cycle
         user.plan = "free"
         await db.commit()
+
+    elif event_name in ["subscription_payment_failed", "order_refunded"]:
+        user.plan = "free"
+        await db.commit()
+
+        from app.services.email import send_failed_payment_email
+        send_failed_payment_email(user.email)
 
     return {"status": "success", "event": event_name, "user_id": user_id, "active_plan": user.plan}
 

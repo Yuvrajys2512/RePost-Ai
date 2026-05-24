@@ -30,10 +30,11 @@
 - [x] Add CLI transcript command
 - [x] Add CLI pipeline command
 - [x] Add tests for transcript parsing, analyzer output, generator output, and end-to-end CLI pipeline contracts
-- [ ] Replace deterministic analyzer with LLM-backed analyzer prompt
-- [ ] Replace deterministic Twitter/X generator with LLM-backed generator prompt
-- [ ] Replace deterministic LinkedIn generator with LLM-backed generator prompt
-- [ ] Add basic QA node
+- [x] Replace deterministic analyzer with LLM-backed analyzer prompt
+- [x] Replace deterministic Twitter/X generator with LLM-backed generator prompt
+- [x] Replace deterministic LinkedIn generator with LLM-backed generator prompt
+- [x] Replace deterministic newsletter, blog, Shorts, and carousel generators with LLM-backed prompts
+- [x] Add basic QA node
 - [ ] Test pipeline against 10 real YouTube videos
 - [ ] Document quality scores for test videos
 
@@ -67,7 +68,7 @@
 - [x] Switch default job persistence from JSON store to Postgres repository
 - [ ] Run ARQ worker end-to-end with Redis enabled
 - [ ] Add browser end-to-end test for paste URL to rendered content
-- [ ] Wire real transcript fetching into default local flow after installing transcript extra
+- [x] Wire real transcript fetching into default local flow after installing transcript extra
 
 ## Phase 3 - All Platforms + Voice Matching
 
@@ -86,7 +87,7 @@
 - [x] Add voice profile persistence model
 - [x] Add voice profile API endpoint
 - [x] Inject voice profile into generator context
-- [ ] Build frontend voice profile settings flow
+- [x] Build frontend voice profile settings flow
 - [x] Expand frontend content kit tabs for all platforms
 - [ ] Test output with five creator voice profiles
 
@@ -126,15 +127,15 @@
 - [x] Add friendly handling for bad URLs
 - [x] Add friendly handling for transcript failures
 - [x] Add rate-limit error UI
-- [ ] Set up Sentry
-- [ ] Add basic analytics
-- [ ] Set up Resend transactional emails
+- [x] Set up Sentry
+- [x] Add basic analytics
+- [x] Set up Resend transactional emails
 - [x] Draft launch copy for Reddit
 - [x] Draft launch copy for Twitter/X
 - [x] Draft launch copy for Product Hunt
-- [ ] Deploy frontend to Vercel
-- [ ] Deploy backend to Railway/Fly.io
-- [ ] Connect production domain
+- [ ] Deploy frontend to Vercel  [YOU — needs Vercel login + env vars set]
+- [ ] Deploy backend to Railway/Fly.io  [YOU — needs Railway login + env vars set]
+- [ ] Connect production domain  [YOU]
 
 ## Phase 6 - Growth Features
 

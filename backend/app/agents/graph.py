@@ -11,6 +11,7 @@ from app.agents.nodes.generators.linkedin import generate_linkedin
 from app.agents.nodes.generators.newsletter import generate_newsletter
 from app.agents.nodes.generators.shorts import generate_shorts
 from app.agents.nodes.generators.twitter import generate_twitter
+from app.agents.nodes.qa import QAResult, run_qa
 from app.schemas.analysis import ContentAnalysis
 from app.schemas.generation import GeneratedContentKit
 from app.schemas.transcript import Transcript
@@ -22,6 +23,9 @@ class PipelineResult(BaseModel):
     transcript: Transcript
     analysis: ContentAnalysis
     content: GeneratedContentKit
+    qa: QAResult | None = None
+
+    model_config = {"arbitrary_types_allowed": True}
 
 
 def run_pipeline_for_transcript(
@@ -49,7 +53,14 @@ def run_pipeline_for_transcript(
             carousel=future_carousel.result(),
         )
 
-    return PipelineResult(transcript=transcript, analysis=analysis, content=content)
+    qa_result = run_qa(content, analysis, voice_style)
+
+    return PipelineResult(
+        transcript=transcript,
+        analysis=analysis,
+        content=qa_result.kit,
+        qa=qa_result,
+    )
 
 
 def run_pipeline(youtube_url: str, transcript_service: TranscriptService | None = None) -> PipelineResult:

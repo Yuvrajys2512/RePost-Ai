@@ -19,15 +19,20 @@ async def get_or_create_user(db: AsyncSession, user_id: str, email: str | None =
     result = await db.execute(select(UserModel).where(UserModel.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
+        resolved_email = email or f"user_{user_id[:8]}@example.com"
         user = UserModel(
             id=user_id,
-            email=email or f"user_{user_id[:8]}@example.com",
+            email=resolved_email,
             plan="free",
             videos_used_this_month=0,
         )
         db.add(user)
         await db.commit()
         await db.refresh(user)
+
+        from app.services.email import send_welcome_email
+        send_welcome_email(resolved_email)
+
     return user
 
 

@@ -150,10 +150,16 @@ def analyze_content(transcript: Transcript, *, title: str | None = None) -> Cont
         return _analyze_with_claude(transcript, title=title, api_key=settings.anthropic_api_key)
 
     if settings.groq_api_key:
-        return _analyze_with_groq(transcript, title=title, api_key=settings.groq_api_key)
+        try:
+            return _analyze_with_groq(transcript, title=title, api_key=settings.groq_api_key)
+        except Exception:
+            pass
 
     if settings.google_api_key:
-        return _analyze_with_gemini(transcript, title=title, api_key=settings.google_api_key)
+        try:
+            return _analyze_with_gemini(transcript, title=title, api_key=settings.google_api_key)
+        except Exception:
+            pass
 
     return _analyze_deterministic(transcript, title=title)
 
