@@ -27,15 +27,15 @@ class YouTubeTranscriptApiProvider:
                 "youtube-transcript-api is not installed; install it to fetch real transcripts"
             ) from exc
 
-        raw_segments = YouTubeTranscriptApi.get_transcript(video_id)
+        fetched = YouTubeTranscriptApi().fetch(video_id)
         segments = [
             TranscriptSegment(
-                start_seconds=float(segment["start"]),
-                duration_seconds=float(segment["duration"]),
-                text=segment["text"],
+                start_seconds=float(snippet.start),
+                duration_seconds=float(snippet.duration),
+                text=snippet.text,
             )
-            for segment in raw_segments
-            if segment.get("text")
+            for snippet in fetched
+            if snippet.text
         ]
         if not segments:
             raise TranscriptExtractionError(f"No transcript segments found for {video_id}")

@@ -22,7 +22,9 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str | None = None
 
     anthropic_api_key: str | None = None
+    groq_api_key: str | None = None
     openai_api_key: str | None = None
+    google_api_key: str | None = None
     youtube_data_api_key: str | None = None
 
     lemon_squeezy_api_key: str | None = None

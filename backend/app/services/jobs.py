@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
-from app.agents.graph import run_pipeline_for_transcript
 from app.schemas.generation import GeneratedContentKit
 from app.schemas.video import VideoJobResponse, VideoJobStatus
 from app.services.transcript import TranscriptExtractionError, TranscriptService, transcript_from_text
@@ -156,6 +155,7 @@ def process_video_job(job_id: UUID, store: LocalVideoJobStore = job_store) -> No
         transcript = _load_transcript(job.youtube_url, job.transcript_text)
 
         store.update(job_id, status_detail="Analyzing content", progress=55)
+        from app.agents.graph import run_pipeline_for_transcript  # lazy — avoids circular import
         result = run_pipeline_for_transcript(transcript)
 
         store.update(job_id, status_detail="Generating platform content", progress=85)
@@ -268,6 +268,7 @@ async def process_video_job_db(job_id: str) -> None:
                         voice_style = None
 
             # Execute pipeline with optional voice injection
+            from app.agents.graph import run_pipeline_for_transcript  # lazy — avoids circular import
             result_kit = run_pipeline_for_transcript(transcript, voice_style=voice_style)
 
             job.status_detail = "Generating platform content"
